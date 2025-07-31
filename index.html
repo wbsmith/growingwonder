@@ -143,35 +143,32 @@
             position: relative;
         }
         
-        .image-placeholder {
+        .image-frame {
             width: 200px;
             height: 150px;
-            background: linear-gradient(135deg, #a8b89f 0%, #94a88b 100%);
             border-radius: 10px;
             margin-bottom: 20px;
             position: relative;
             transform: rotate(-2deg);
             box-shadow: 0 8px 16px rgba(0,0,0,0.15);
             border: 8px solid white;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: white;
-            font-weight: 600;
-            text-align: center;
-            font-size: 0.9rem;
+            overflow: hidden;
         }
         
-        .image-placeholder:nth-child(2) {
+        .image-frame img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        
+        .image-frame:nth-child(2) {
             transform: rotate(3deg);
             margin-left: 60px;
-            background: linear-gradient(135deg, #b5a98c 0%, #a19785 100%);
         }
         
-        .image-placeholder:nth-child(3) {
+        .image-frame:nth-child(3) {
             transform: rotate(-1deg);
             margin-left: 20px;
-            background: linear-gradient(135deg, #9bb090 0%, #8ba786 100%);
         }
         
         .footer-info {
@@ -327,17 +324,14 @@
             </div>
             
             <div class="images">
-                <div class="image-placeholder">
-                    Kids exploring<br>
-                    nature together
+                <div class="image-frame">
+                    <img src="https://wbsmith.s3.amazonaws.com/growingwonder/photos/image1.png" alt="Kids exploring nature together">
                 </div>
-                <div class="image-placeholder">
-                    Child climbing<br>
-                    in trees
+                <div class="image-frame">
+                    <img src="https://wbsmith.s3.amazonaws.com/growingwonder/photos/image2.png" alt="Child climbing in trees">
                 </div>
-                <div class="image-placeholder">
-                    Group nature<br>
-                    adventure
+                <div class="image-frame">
+                    <img src="https://wbsmith.s3.amazonaws.com/growingwonder/photos/image3.png" alt="Group nature adventure">
                 </div>
             </div>
         </div>
@@ -345,7 +339,7 @@
         <footer class="footer-info">
             <div class="availability">
                 <h2>SPACES LIMITED</h2>
-                <p>AGES 3-6 | M-F 9am-2pm</p>
+                <p>AGES 3-6 | M-F, 9am-2pm</p>
             </div>
             
             <div class="contact-info">
@@ -356,7 +350,7 @@
                     📞 415-272-2241
                 </div>
                 <div class="contact-item">
-                    ✉️ <a href=”mailto:Katja.Gruenheidt@gmail.com?subject=Nature%20Program%20Inquiry”>Email Us</a>
+                    ✉️ <a href="mailto:Katja.Gruenheidt@gmail.com?subject=Nature%20Program%20Inquiry" style="color: blue; text-decoration: none;">Email Us</a>
                 </div>
             </div>
         </footer>
