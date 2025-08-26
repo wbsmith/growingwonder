@@ -3,6 +3,394 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kids Nature Program</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🌲</text></svg>">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Fredoka+One:wght@400&family=Open+Sans:wght@300;400;600;700&display=swap');
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Open Sans', sans-serif;
+            background: linear-gradient(135deg, #f8f6f0 0%, #f2efe8 100%);
+            min-height: 100vh;
+            padding: 20px;
+            position: relative;
+            overflow-x: hidden;
+        }
+        
+        .container {
+            max-width: 1100px;
+            margin: 0 auto;
+            position: relative;
+        }
+        
+        .hero-section {
+            position: relative;
+            height: 500px;
+            background: linear-gradient(135deg, rgba(139, 185, 82, 0.1) 0%, rgba(198, 219, 120, 0.1) 100%);
+            border-radius: 20px;
+            overflow: hidden;
+            margin-bottom: 40px;
+        }
+        
+        .nature-bg {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-image: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 500"><rect width="100%" height="100%" fill="%2394b85f" opacity="0.1"/><circle cx="100" cy="100" r="40" fill="%23f4a742" opacity="0.3"/><circle cx="1000" cy="80" r="60" fill="%23ffb627" opacity="0.2"/></svg>');
+            opacity: 0.8;
+        }
+        
+        .hero-title {
+            position: absolute;
+            top: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-family: 'Fredoka One', cursive;
+            font-size: 3.5rem;
+            color: #f4a742;
+            text-shadow: 3px 3px 0px rgba(0,0,0,0.3), 6px 6px 0px rgba(255,182,39,0.4);
+            z-index: 10;
+            text-align: center;
+        }
+        
+        .photos-container {
+            position: relative;
+            height: 400px;
+            z-index: 5;
+        }
+        
+        .photo-frame {
+            position: absolute;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 12px 24px rgba(0,0,0,0.15);
+            border: 6px solid white;
+            overflow: hidden;
+        }
+        
+        .photo-frame img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        
+        .photo-1 {
+            width: 220px;
+            height: 160px;
+            top: 150px;
+            left: 80px;
+            transform: rotate(-8deg);
+            z-index: 8;
+        }
+        
+        .photo-2 {
+            width: 200px;
+            height: 150px;
+            top: 220px;
+            right: 200px;
+            transform: rotate(5deg);
+            z-index: 7;
+        }
+        
+        .schedule-badge {
+            position: absolute;
+            top: 280px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: linear-gradient(135deg, #f4a742 0%, #ffb627 100%);
+            color: white;
+            padding: 15px 30px;
+            border-radius: 25px;
+            font-weight: bold;
+            font-size: 1.1rem;
+            text-align: center;
+            box-shadow: 0 8px 16px rgba(244, 167, 66, 0.4);
+            z-index: 9;
+        }
+        
+        .age-badge {
+            position: absolute;
+            top: 340px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: linear-gradient(135deg, #ffb627 0%, #f4a742 100%);
+            color: white;
+            padding: 10px 25px;
+            border-radius: 20px;
+            font-weight: bold;
+            font-size: 1.3rem;
+            box-shadow: 0 6px 12px rgba(255, 182, 39, 0.4);
+            z-index: 9;
+        }
+        
+        .decorative-elements {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+        }
+        
+        .leaf-1 {
+            position: absolute;
+            top: 80px;
+            left: 20px;
+            font-size: 3rem;
+            color: #8bb952;
+            transform: rotate(-20deg);
+            opacity: 0.7;
+        }
+        
+        .leaf-2 {
+            position: absolute;
+            top: 120px;
+            right: 30px;
+            font-size: 2.5rem;
+            color: #f4a742;
+            transform: rotate(15deg);
+            opacity: 0.8;
+        }
+        
+        .dots {
+            position: absolute;
+            bottom: 60px;
+            left: 40px;
+            font-size: 2rem;
+            color: #ffb627;
+            opacity: 0.6;
+        }
+        
+        .tagline {
+            text-align: center;
+            margin: 40px 0;
+            font-family: 'Fredoka One', cursive;
+            font-size: 2.2rem;
+            color: #6b8e5a;
+            line-height: 1.3;
+        }
+        
+        .features-section {
+            display: flex;
+            justify-content: space-between;
+            margin: 60px 0;
+            gap: 40px;
+        }
+        
+        .features-left {
+            flex: 1;
+        }
+        
+        .features-right {
+            flex: 1;
+        }
+        
+        .feature-item {
+            display: flex;
+            align-items: center;
+            margin-bottom: 25px;
+            font-size: 1.1rem;
+            color: #4a5c3a;
+        }
+        
+        .feature-bullet {
+            width: 12px;
+            height: 12px;
+            background: #2d4a24;
+            border-radius: 50%;
+            margin-right: 15px;
+            flex-shrink: 0;
+        }
+        
+        .contact-section {
+            background: linear-gradient(135deg, rgba(139, 185, 82, 0.1) 0%, rgba(244, 167, 66, 0.1) 100%);
+            border-radius: 20px;
+            padding: 40px;
+            margin-top: 60px;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .contact-section::before {
+            content: '';
+            position: absolute;
+            bottom: -50px;
+            left: -50px;
+            width: 200px;
+            height: 200px;
+            background: radial-gradient(circle, rgba(255, 182, 39, 0.2) 0%, transparent 70%);
+            border-radius: 50%;
+        }
+        
+        .contact-section::after {
+            content: '';
+            position: absolute;
+            top: -30px;
+            right: -30px;
+            width: 150px;
+            height: 150px;
+            background: radial-gradient(circle, rgba(244, 167, 66, 0.15) 0%, transparent 70%);
+            border-radius: 50%;
+        }
+        
+        .contact-info {
+            z-index: 2;
+            text-align: center;
+        }
+        
+        .contact-item {
+            display: flex;
+            align-items: center;
+            margin-bottom: 15px;
+            font-size: 1.1rem;
+            color: #4a5c3a;
+            font-weight: 600;
+        }
+        
+        .contact-item a {
+            color: #6b8e5a;
+            text-decoration: underline;
+            font-weight: 600;
+        }
+        
+        .contact-item a:hover {
+            text-decoration: underline;
+            color: #5a7d4a;
+        }
+        
+        @media (max-width: 768px) {
+            .hero-title {
+                font-size: 2.5rem;
+                top: 20px;
+            }
+            
+            .photos-container {
+                height: 350px;
+            }
+            
+            .photo-1 {
+                width: 180px;
+                height: 130px;
+                left: 20px;
+                top: 120px;
+            }
+            
+            .photo-2 {
+                width: 160px;
+                height: 120px;
+                right: 20px;
+                top: 180px;
+            }
+            
+            .schedule-badge {
+                font-size: 1rem;
+                padding: 12px 20px;
+                top: 250px;
+            }
+            
+            .age-badge {
+                font-size: 1.1rem;
+                top: 300px;
+            }
+            
+            .tagline {
+                font-size: 1.8rem;
+                margin: 30px 20px;
+            }
+            
+            .features-section {
+                flex-direction: column;
+                margin: 40px 20px;
+            }
+            
+            .contact-section {
+                margin: 40px 20px;
+                text-align: center;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <section class="hero-section">
+            <div class="nature-bg"></div>
+            <h1 class="hero-title">Kids Nature Program</h1>
+            
+            <div class="photos-container">
+                <div class="photo-frame photo-1">
+                    <img src="https://kg-growingwonder-dot-org.s3.us-west-1.amazonaws.com/content/mainimages/kids_looking_up.png" alt="Kids exploring nature together">
+                </div>
+                <div class="photo-frame photo-2">
+                    <img src="https://kg-growingwonder-dot-org.s3.us-west-1.amazonaws.com/content/mainimages/girl_in_tree.png" alt="Child in nature">
+                </div>
+                
+                <div class="schedule-badge">M-F 9AM-1PM</div>
+                <div class="age-badge">AGES 3-6</div>
+            </div>
+            
+            <div class="decorative-elements">
+                <div class="leaf-1">🌿</div>
+                <div class="leaf-2">🍃</div>
+                <div class="dots">• • •</div>
+            </div>
+        </section>
+        
+        <div class="tagline">
+            Filled with Wonder, Imagination,<br>
+            Creativity and... a lot of Love!
+        </div>
+        
+        <section class="features-section">
+            <div class="features-left">
+                <div class="feature-item">
+                    <div class="feature-bullet"></div>
+                    <span>Small Group Setting</span>
+                </div>
+                <div class="feature-item">
+                    <div class="feature-bullet"></div>
+                    <span>Nature Exploration</span>
+                </div>
+            </div>
+            <div class="features-right">
+                <div class="feature-item">
+                    <div class="feature-bullet"></div>
+                    <span>Building Confidence</span>
+                </div>
+                <div class="feature-item">
+                    <div class="feature-bullet"></div>
+                    <span>Curiosity and Creativity</span>
+                </div>
+            </div>
+        </section>
+        
+        <section class="contact-section">
+            <div class="contact-info">
+                <div class="contact-item">
+                    📞 <a href="tel:+14152722241">415 272 2241</a>
+                </div>
+                <div class="contact-item">
+                    📍 Roy's Redwoods, Deer Park, Wall Hill
+                </div>
+                <div class="contact-item">
+                    ✉️ <a href="mailto:Katja.Gruenheidt@gmail.com?subject=Nature%20Program%20Inquiry">Email Us</a>
+                </div>
+            </div>
+        </section>
+    </div>
+</body>
+</html>
+
+<!-- <!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Kids Summer Nature Camp</title>
     <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🌲</text></svg>">
     <style>
@@ -358,3 +746,4 @@
     </div>
 </body>
 </html>
+ -->
