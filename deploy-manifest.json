@@ -28,7 +28,7 @@
     {
       "name": "default",
       "runtime": "nodejs22.x",
-      "entrypoint": "lambda.js"
+      "entrypoint": "server.js"
     }
   ]
 }

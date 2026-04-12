@@ -13,7 +13,7 @@ frontend:
         - cp -r lib .amplify-hosting/compute/default/
         - cp -r routes .amplify-hosting/compute/default/
         - cp -r db .amplify-hosting/compute/default/
-        - cp app.js lambda.js package.json package-lock.json .amplify-hosting/compute/default/
+        - cp app.js server.js package.json package-lock.json .amplify-hosting/compute/default/
         - cp deploy-manifest.json .amplify-hosting/deploy-manifest.json
         - echo "SESSION_SECRET=$SESSION_SECRET" > .amplify-hosting/compute/default/.env
         - echo "ADMIN_USER=$ADMIN_USER" >> .amplify-hosting/compute/default/.env
