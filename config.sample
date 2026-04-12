@@ -1,0 +1,16 @@
+# Copy this to .env and fill in real values
+#
+# Server (local dev only)
+PORT=0
+
+# Session signing key
+SESSION_SECRET=change-me-to-something-random
+
+# Admin credentials
+ADMIN_USER=admin
+ADMIN_PASS=change-me
+
+# AWS
+AWS_REGION=us-west-1
+SES_FROM_EMAIL_REG=registration@worldinwonder.com
+SES_FROM_EMAIL_INFO=info@worldinwonder.com

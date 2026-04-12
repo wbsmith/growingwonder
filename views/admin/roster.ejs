@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Roster — <%= program.name %> — Week of <%= weekStart %></title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Lato:wght@400;700&display=swap');
+
+    @page { size: portrait; margin: 0.5in; }
+
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: 'Lato', sans-serif;
+      font-size: 12pt;
+      color: #222;
+    }
+
+    .roster-page {
+      page-break-after: always;
+      padding: 0.5in;
+      border-bottom: 4px dashed #ccc;
+      margin-bottom: 40px;
+    }
+    .roster-page:last-child {
+      page-break-after: auto;
+      border-bottom: none;
+      margin-bottom: 0;
+    }
+
+    .roster-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      border-bottom: 3px solid #2c4a2e;
+      padding-bottom: 8px;
+      margin-bottom: 16px;
+    }
+    .roster-header h1 {
+      font-size: 16pt;
+      color: #2c4a2e;
+    }
+    .roster-header .date {
+      font-size: 14pt;
+      font-weight: 700;
+    }
+    .roster-header .page-type {
+      font-size: 9pt;
+      color: #888;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+
+    .roster-table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    .roster-table th,
+    .roster-table td {
+      border: 1px solid #999;
+      padding: 8px 10px;
+      text-align: left;
+      vertical-align: top;
+    }
+    .roster-table th {
+      background: #2c4a2e;
+      color: white;
+      font-size: 10pt;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .roster-table td {
+      font-size: 11pt;
+      min-height: 28px;
+    }
+
+    .roster-table tr.blank td {
+      height: 32px;
+    }
+
+    .age-summary {
+      margin-top: 20px;
+      font-size: 9.5pt;
+      color: #444;
+    }
+    .age-summary strong {
+      color: #2c4a2e;
+    }
+
+    .roster-footer {
+      margin-top: 16px;
+      font-size: 9pt;
+      color: #777;
+      text-align: center;
+    }
+
+    @media print {
+      body { font-size: 11pt; }
+      .roster-page {
+        padding: 0;
+        border-bottom: none;
+        margin-bottom: 0;
+      }
+    }
+  </style>
+</head>
+<body>
+
+<% if (rosterByDay.length === 0) { %>
+  <div style="padding: 40px; text-align: center; color: #888;">
+    No enrollments for this week.
+  </div>
+<% } %>
+
+<% rosterByDay.forEach(day => { %>
+  <%
+    const dt = new Date(day.date + 'T00:00:00');
+    const formatted = dt.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+
+    // Format child name: "FirstName L." if there's a last name
+    function displayName(fullName) {
+      const parts = fullName.trim().split(/\s+/);
+      if (parts.length === 1) return parts[0];
+      return parts[0] + ' ' + parts[parts.length - 1][0] + '.';
+    }
+
+    // Age distribution
+    const ageCounts = {};
+    day.children.forEach(c => {
+      ageCounts[c.age] = (ageCounts[c.age] || 0) + 1;
+    });
+    const ageSummary = Object.keys(ageCounts)
+      .sort((a, b) => Number(a) - Number(b))
+      .map(age => {
+        const n = ageCounts[age];
+        return n + ' age ' + age;
+      })
+      .join(', ');
+  %>
+
+  <!-- PAGE 1: Sign-in sheet (parent-facing) -->
+  <div class="roster-page">
+    <div class="roster-header">
+      <div>
+        <h1>World in Wonder &mdash; <%= program.name %></h1>
+        <div class="page-type">Sign-In Sheet</div>
+      </div>
+      <div class="date"><%= formatted %></div>
+    </div>
+
+    <table class="roster-table">
+      <thead>
+        <tr>
+          <th style="width: 25%;">Child's Name</th>
+          <th style="width: 15%;">Time In</th>
+          <th style="width: 15%;">Time Out</th>
+          <th style="width: 25%;">Parent/Guardian Signature</th>
+          <th style="width: 20%;">Notes</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% day.children.forEach(child => { %>
+          <tr>
+            <td><%= displayName(child.name) %></td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+          </tr>
+        <% }) %>
+        <% for (let i = 0; i < 4; i++) { %>
+          <tr class="blank">
+            <td></td><td></td><td></td><td></td><td></td>
+          </tr>
+        <% } %>
+      </tbody>
+    </table>
+
+    <div class="roster-footer">
+      World in Wonder &mdash; <%= program.name %> &mdash; <%= formatted %>
+    </div>
+  </div>
+
+  <!-- PAGE 2: Admin detail sheet -->
+  <div class="roster-page">
+    <div class="roster-header">
+      <div>
+        <h1>World in Wonder &mdash; <%= program.name %></h1>
+        <div class="page-type">Admin Reference</div>
+      </div>
+      <div class="date"><%= formatted %></div>
+    </div>
+
+    <table class="roster-table">
+      <thead>
+        <tr>
+          <th style="width: 20%;">Child's Name</th>
+          <th style="width: 6%; text-align: center;">Age</th>
+          <th style="width: 20%;">Parent/Guardian</th>
+          <th style="width: 16%;">Phone</th>
+          <th style="width: 38%;">Allergies &amp; Notes</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% day.children.forEach(child => { %>
+          <tr>
+            <td><%= child.name %></td>
+            <td style="text-align: center;"><%= child.age %></td>
+            <td><%= child.parentName %></td>
+            <td><%= child.parentPhone %></td>
+            <td><%= [child.allergies, child.notes].filter(Boolean).join('; ') %></td>
+          </tr>
+        <% }) %>
+      </tbody>
+    </table>
+
+    <div class="age-summary">
+      <strong><%= day.children.length %> children enrolled:</strong> <%= ageSummary %>
+    </div>
+
+    <div class="roster-footer">
+      World in Wonder &mdash; <%= program.name %> &mdash; <%= formatted %> &mdash; ADMIN
+    </div>
+  </div>
+
+<% }) %>
+
+</body>
+</html>

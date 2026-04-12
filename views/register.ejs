@@ -1,0 +1,105 @@
+<%- include('layout_head', { title: 'Register' }) %>
+
+<nav class="site-nav">
+  <a href="/" class="logo">World in Wonder</a>
+  <div class="nav-links">
+    <a href="/">Home</a>
+    <a href="/register">Register</a>
+  </div>
+</nav>
+
+<div class="form-page">
+  <h1>Registration</h1>
+  <p class="lead">Select a program and dates, then fill in your information below.</p>
+
+  <form method="POST" action="/register" id="regForm">
+    <div class="form-group">
+      <label>Program <span class="req">*</span></label>
+      <select name="program_id" id="programSelect" required>
+        <option value="">Choose a program...</option>
+        <% programs.forEach(p => { %>
+          <option value="<%= p.id %>" <%= selectedProgramId === p.id ? 'selected' : '' %>><%= p.name %></option>
+        <% }) %>
+      </select>
+    </div>
+
+    <div class="calendar-container" id="calendarContainer">
+      <h3>Select Your Dates</h3>
+      <p id="calendarHint" style="color: var(--text-light); font-size: 0.9rem; margin-bottom: 12px;"></p>
+      <div id="calendar"></div>
+      <div class="selected-summary" id="selectedSummary" style="display: none;">
+        <strong>Selected:</strong> <span id="selectedCount">0</span> day(s)
+        <span id="selectedList" style="display: block; margin-top: 4px; font-size: 0.85rem;"></span>
+      </div>
+    </div>
+
+    <input type="hidden" name="selected_dates" id="selectedDates">
+
+    <div class="form-fields-narrow">
+    <div class="form-row">
+      <div class="form-group">
+        <label>Parent/Guardian Name <span class="req">*</span></label>
+        <input type="text" name="parent_name" required>
+      </div>
+      <div class="form-group">
+        <label>Email <span class="req">*</span></label>
+        <input type="email" name="parent_email" id="parentEmail" required
+          pattern="[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}"
+          title="Please enter a valid email address">
+        <span class="field-error" id="emailError"></span>
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label>Phone <span class="req">*</span></label>
+      <input type="tel" name="parent_phone" id="parentPhone" required
+        placeholder="(555) 123-4567"
+        title="Please enter a 10-digit US phone number">
+      <span class="field-error" id="phoneError"></span>
+    </div>
+
+    <div id="childrenSection">
+      <h3 style="color: var(--green-dark); margin-bottom: 16px;">Children</h3>
+      <div class="child-entry" data-index="0">
+        <div class="form-row">
+          <div class="form-group">
+            <label>Child's Name <span class="req">*</span></label>
+            <input type="text" name="children[0][name]" required>
+          </div>
+          <div class="form-group">
+            <label>Date of Birth <span class="req">*</span></label>
+            <input type="date" name="children[0][dob]" required>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Healthcare Provider</label>
+            <input type="text" name="children[0][healthcare_provider]">
+          </div>
+          <div class="form-group">
+            <label>Allergies</label>
+            <input type="text" name="children[0][allergies]">
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <a href="#" id="addChildBtn" class="add-child-link">+ Add Another Child</a>
+
+    <div class="form-group" style="margin-top: 20px;">
+      <label id="notesLabel">Tell us a little something about your child</label>
+      <textarea name="notes" rows="3"></textarea>
+    </div>
+
+    <button type="submit" class="btn btn-green" style="width: 100%; font-size: 1.1rem;">
+      Complete Registration
+    </button>
+    </div><!-- .form-fields-narrow -->
+  </form>
+</div>
+
+<script src="/js/calendar.js"></script>
+<script src="/js/children.js"></script>
+<script src="/js/validate.js"></script>
+
+<%- include('layout_foot') %>

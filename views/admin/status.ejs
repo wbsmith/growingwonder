@@ -1,0 +1,161 @@
+<%- include('../layout_head', { title: 'Payment Status' }) %>
+<link rel="stylesheet" href="/css/admin.css">
+
+<div class="admin-layout">
+  <%- include('_sidebar', { active: 'status' }) %>
+  <main class="admin-main">
+    <h1>Payment Status</h1>
+
+    <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 24px; flex-wrap: wrap; gap: 12px;">
+      <form method="GET" action="/admin/status" class="inline-form" style="margin-bottom: 0;">
+        <div class="form-group" style="margin-bottom: 0;">
+          <select name="program" onchange="this.form.submit()">
+            <option value="">All programs</option>
+            <% programs.forEach(p => { %>
+              <option value="<%= p.id %>" <%= selectedProgramId === p.id ? 'selected' : '' %>><%= p.name %></option>
+            <% }) %>
+          </select>
+        </div>
+      </form>
+      <a href="/admin/status/csv<%= selectedProgramId ? '?program=' + selectedProgramId : '' %>"
+         class="btn btn-outline btn-sm">Export CSV</a>
+    </div>
+
+    <% if (rows.length === 0) { %>
+      <p style="color: var(--text-light);">No registrations.</p>
+    <% } else { %>
+      <table class="data-table" id="statusTable">
+        <thead>
+          <tr>
+            <th>Parent</th>
+            <th>Contact</th>
+            <th>Children</th>
+            <th>Program</th>
+            <th>Dates</th>
+            <th>Confirmed</th>
+            <th style="cursor: pointer;" onclick="sortByPayment()">
+              Payment <span id="sortArrow">&#9650;</span>
+            </th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% rows.forEach(r => { %>
+            <%
+              const unpaid = (r.paymentAmount == null || r.paymentAmount === 0);
+              const rowClass = unpaid ? 'unpaid-row' : '';
+            %>
+            <tr class="<%= rowClass %>" data-amount="<%= r.paymentAmount != null ? r.paymentAmount : -1 %>">
+              <td><%= r.parentName %></td>
+              <td style="font-size: 0.8rem;">
+                <div><%= r.parentEmail %></div>
+                <div><%= r.parentPhone %></div>
+              </td>
+              <td>
+                <% (r.children || []).forEach(c => { %>
+                  <div style="font-size: 0.85rem;"><%= c.name %> (<%= c.dob %>)</div>
+                <% }) %>
+              </td>
+              <td><%= r.programName %></td>
+              <td style="font-size: 0.75rem;">
+                <% (r.selectedDates || []).sort().forEach(d => { %>
+                  <div><%= d %></div>
+                <% }) %>
+              </td>
+              <td style="font-size: 0.8rem;"><%= r.confirmationDate || '—' %></td>
+              <td style="font-size: 0.8rem;">
+                <% if (r.paymentAmount != null || r.paymentDate) { %>
+                  <% if (r.paymentAmount != null) { %><div><strong>$<%= r.paymentAmount.toFixed(2) %></strong></div><% } %>
+                  <% if (r.paymentDate) { %><div><%= r.paymentDate %></div><% } %>
+                  <% if (r.paymentNotes) { %><div style="font-size: 0.75rem; color: var(--text-light);"><%= r.paymentNotes %></div><% } %>
+                <% } else { %>
+                  <span style="color: var(--text-light);">—</span>
+                <% } %>
+              </td>
+              <td>
+                <button type="button" class="btn btn-outline btn-sm" onclick="openEdit('<%= r.id %>')">Edit</button>
+              </td>
+            </tr>
+          <% }) %>
+        </tbody>
+      </table>
+    <% } %>
+
+    <!-- Edit modal -->
+    <div id="editModal" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.4); z-index: 100; align-items: center; justify-content: center;">
+      <div style="background: var(--white); border-radius: 12px; padding: 32px; max-width: 440px; width: 90%; box-shadow: 0 8px 30px rgba(0,0,0,0.2);">
+        <h3 style="color: var(--green-dark); margin-bottom: 20px;">Update Payment</h3>
+        <form method="POST" action="/admin/status/update" id="editForm">
+          <input type="hidden" name="registration_id" id="editRegId">
+          <div class="form-group">
+            <label>Payment Date</label>
+            <input type="date" name="payment_date" id="editPayDate">
+          </div>
+          <div class="form-group">
+            <label>Amount ($)</label>
+            <input type="number" name="payment_amount" id="editPayAmount" step="0.01" min="0">
+          </div>
+          <div class="form-group">
+            <label>Notes</label>
+            <textarea name="payment_notes" id="editPayNotes" rows="2" style="width:100%; padding:8px; border:1px solid #ccc; border-radius:var(--radius); font-family:inherit;"></textarea>
+          </div>
+          <div style="display: flex; gap: 12px;">
+            <button type="submit" class="btn btn-green btn-sm">Save</button>
+            <button type="button" class="btn btn-outline btn-sm" onclick="closeEdit()">Cancel</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </main>
+</div>
+
+<style>
+  .unpaid-row td { background: #fdf0ef; }
+  .unpaid-row:hover td { background: #fbe3e0; }
+</style>
+
+<script>
+const paymentData = <%- JSON.stringify(
+  rows.reduce((acc, r) => {
+    acc[r.id] = {
+      date: r.paymentDate || '',
+      amount: r.paymentAmount != null ? String(r.paymentAmount) : '',
+      notes: r.paymentNotes || ''
+    };
+    return acc;
+  }, {})
+) %>;
+
+function openEdit(id) {
+  const d = paymentData[id] || {};
+  document.getElementById('editRegId').value = id;
+  document.getElementById('editPayDate').value = d.date;
+  document.getElementById('editPayAmount').value = d.amount;
+  document.getElementById('editPayNotes').value = d.notes;
+  document.getElementById('editModal').style.display = 'flex';
+}
+
+function closeEdit() {
+  document.getElementById('editModal').style.display = 'none';
+}
+
+document.getElementById('editModal').addEventListener('click', function(e) {
+  if (e.target === this) closeEdit();
+});
+
+let sortAsc = true;
+function sortByPayment() {
+  const tbody = document.querySelector('#statusTable tbody');
+  const rows = Array.from(tbody.querySelectorAll('tr'));
+  rows.sort((a, b) => {
+    const aVal = parseFloat(a.dataset.amount);
+    const bVal = parseFloat(b.dataset.amount);
+    return sortAsc ? aVal - bVal : bVal - aVal;
+  });
+  sortAsc = !sortAsc;
+  document.getElementById('sortArrow').innerHTML = sortAsc ? '&#9650;' : '&#9660;';
+  rows.forEach(r => tbody.appendChild(r));
+}
+</script>
+
+<%- include('../layout_foot') %>

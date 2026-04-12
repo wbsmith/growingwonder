@@ -1,0 +1,42 @@
+<%- include('../layout_head', { title: 'Admin Dashboard' }) %>
+<link rel="stylesheet" href="/css/admin.css">
+
+<div class="admin-layout">
+  <%- include('_sidebar', { active: 'dashboard' }) %>
+  <main class="admin-main">
+    <h1>Dashboard</h1>
+
+    <div class="stats-grid">
+      <% stats.forEach(s => { %>
+        <div class="stat-card">
+          <div class="number"><%= s.total_registrations %></div>
+          <div class="label"><%= s.name %> registrations</div>
+          <% if (s.total_registrations === 0) { %>
+            <form method="POST" action="/admin/programs/remove" style="margin-top: 8px;">
+              <input type="hidden" name="program_id" value="<%= s.id %>">
+              <button type="submit" class="btn btn-danger btn-sm"
+                onclick="return confirm('Remove program \'<%= s.name %>\'? This also removes its configured dates.')">Remove</button>
+            </form>
+          <% } %>
+        </div>
+      <% }) %>
+      <div class="stat-card">
+        <div class="number"><%= pendingEmails %></div>
+        <div class="label">Emails pending review</div>
+      </div>
+    </div>
+
+    <h2 style="margin-bottom: 16px;">Add Program</h2>
+    <form method="POST" action="/admin/programs/add" class="inline-form">
+      <div class="form-group">
+        <input type="text" name="name" placeholder="Program name" required>
+      </div>
+      <div class="form-group">
+        <input type="text" name="description" placeholder="Description">
+      </div>
+      <button type="submit" class="btn btn-green btn-sm">Add</button>
+    </form>
+  </main>
+</div>
+
+<%- include('../layout_foot') %>

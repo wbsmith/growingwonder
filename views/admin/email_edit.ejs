@@ -1,0 +1,39 @@
+<%- include('../layout_head', { title: 'Edit Email' }) %>
+<link rel="stylesheet" href="/css/admin.css">
+
+<div class="admin-layout">
+  <%- include('_sidebar', { active: 'emails' }) %>
+  <main class="admin-main">
+    <h1>Edit Confirmation Email</h1>
+
+    <div class="email-meta">
+      <strong>To:</strong> <%= email.toAddr %><br>
+      <strong>Child:</strong> <%= email.childName %><br>
+      <strong>Program:</strong> <%= email.programName %><br>
+      <strong>Status:</strong> <span class="badge badge-<%= email.status %>"><%= email.status %></span>
+    </div>
+
+    <form method="POST" action="/admin/emails/<%= email.id %>/update" class="email-edit">
+      <div class="form-group">
+        <label>Subject</label>
+        <input type="text" name="subject" value="<%= email.subject %>" style="width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: var(--radius);">
+      </div>
+      <div class="form-group">
+        <label>Body</label>
+        <textarea name="body"><%= email.body %></textarea>
+      </div>
+      <div style="display: flex; gap: 12px;">
+        <button type="submit" class="btn btn-outline">Save Draft</button>
+        <% if (email.status === 'draft' || email.status === 'failed') { %>
+          <button type="submit" formaction="/admin/emails/<%= email.id %>/send" class="btn btn-green"
+            onclick="return confirm('Send this email to <%= email.toAddr %>?')">
+            Send Email
+          </button>
+        <% } %>
+        <a href="/admin/emails" class="btn btn-outline" style="margin-left: auto;">Back to Queue</a>
+      </div>
+    </form>
+  </main>
+</div>
+
+<%- include('../layout_foot') %>

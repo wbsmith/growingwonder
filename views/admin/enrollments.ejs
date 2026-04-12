@@ -1,0 +1,81 @@
+<%- include('../layout_head', { title: 'Enrollments' }) %>
+<link rel="stylesheet" href="/css/admin.css">
+
+<div class="admin-layout">
+  <%- include('_sidebar', { active: 'enrollments' }) %>
+  <main class="admin-main">
+    <h1>Enrollments</h1>
+
+    <form method="GET" action="/admin/enrollments" class="inline-form" style="margin-bottom: 24px;">
+      <div class="form-group">
+        <select name="program" onchange="this.form.submit()">
+          <option value="">All programs</option>
+          <% programs.forEach(p => { %>
+            <option value="<%= p.id %>" <%= selectedProgramId === p.id ? 'selected' : '' %>><%= p.name %></option>
+          <% }) %>
+        </select>
+      </div>
+    </form>
+
+    <% if (selectedProgramId && weeks && weeks.length > 0) { %>
+      <div style="margin-bottom: 32px; padding: 20px; background: var(--white); border-radius: var(--radius); box-shadow: 0 2px 8px rgba(0,0,0,0.06);">
+        <h3 style="margin-bottom: 12px; color: var(--green-dark); font-size: 1.1rem;">Print Weekly Roster</h3>
+        <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap;">
+          <div class="form-group" style="margin-bottom: 0;">
+            <label>Week</label>
+            <select id="rosterWeek">
+              <% weeks.forEach(w => { %>
+                <option value="<%= w.monday %>"><%= w.monday %> to <%= w.friday %></option>
+              <% }) %>
+            </select>
+          </div>
+          <a id="rosterLink" href="#" class="btn btn-outline btn-sm" target="_blank"
+             onclick="this.href='/admin/roster?program=<%= selectedProgramId %>&week='+document.getElementById('rosterWeek').value">
+            Print Roster
+          </a>
+        </div>
+      </div>
+    <% } %>
+
+    <% if (enrollments.length === 0) { %>
+      <p style="color: var(--text-light);">No registrations yet.</p>
+    <% } else { %>
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Program</th>
+            <th>Children</th>
+            <th>Parent</th>
+            <th>Email</th>
+            <th>Phone</th>
+            <th>Dates</th>
+            <th>Registered</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% enrollments.forEach(e => { %>
+            <tr>
+              <td><%= e.programName %></td>
+              <td>
+                <% (e.children || []).forEach(c => { %>
+                  <div style="font-size: 0.85rem;"><strong><%= c.name %></strong> (DOB: <%= c.dob %>)</div>
+                <% }) %>
+              </td>
+              <td><%= e.parentName %></td>
+              <td><%= e.parentEmail %></td>
+              <td><%= e.parentPhone %></td>
+              <td>
+                <% (e.selectedDates || []).sort().forEach(d => { %>
+                  <div style="font-size: 0.8rem;"><%= d %></div>
+                <% }) %>
+              </td>
+              <td style="font-size: 0.8rem;"><%= e.createdAt %></td>
+            </tr>
+          <% }) %>
+        </tbody>
+      </table>
+    <% } %>
+  </main>
+</div>
+
+<%- include('../layout_foot') %>

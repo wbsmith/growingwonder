@@ -1,0 +1,52 @@
+<%- include('../layout_head', { title: 'Email Queue' }) %>
+<link rel="stylesheet" href="/css/admin.css">
+
+<div class="admin-layout">
+  <%- include('_sidebar', { active: 'emails' }) %>
+  <main class="admin-main">
+    <h1>Email Queue</h1>
+
+    <% if (emails.length === 0) { %>
+      <p style="color: var(--text-light);">No emails in queue.</p>
+    <% } else { %>
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Status</th>
+            <th>To</th>
+            <th>Child</th>
+            <th>Program</th>
+            <th>Subject</th>
+            <th>Created</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          <% emails.forEach(e => { %>
+            <tr>
+              <td>
+                <span class="badge badge-<%= e.status %>"><%= e.status %></span>
+              </td>
+              <td><%= e.toAddr %></td>
+              <td><%= e.childName %></td>
+              <td><%= e.programName %></td>
+              <td><%= e.subject %></td>
+              <td style="font-size: 0.8rem;"><%= e.createdAt %></td>
+              <td>
+                <% if (e.status === 'draft') { %>
+                  <a href="/admin/emails/<%= e.id %>/edit" class="btn btn-outline btn-sm">Edit & Send</a>
+                <% } else if (e.status === 'sent') { %>
+                  <span style="color: var(--text-light); font-size: 0.8rem;">Sent <%= e.sentAt %></span>
+                <% } else { %>
+                  <a href="/admin/emails/<%= e.id %>/edit" class="btn btn-outline btn-sm">Retry</a>
+                <% } %>
+              </td>
+            </tr>
+          <% }) %>
+        </tbody>
+      </table>
+    <% } %>
+  </main>
+</div>
+
+<%- include('../layout_foot') %>

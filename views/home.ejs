@@ -1,0 +1,78 @@
+<%- include('layout_head', { title: 'Home' }) %>
+
+<nav class="site-nav">
+  <a href="/" class="logo">World in Wonder</a>
+  <div class="nav-links">
+    <a href="/#programs">Programs</a>
+    <a href="/register">Register</a>
+    <a href="/#contact">Contact</a>
+  </div>
+</nav>
+
+<section class="hero">
+  <div>
+    <h1>Step Into the Forest.<br>Grow With Wonder.</h1>
+    <p>Nature-based programs for young explorers. Camps, adventure days, and school programs in the heart of Marin County.</p>
+    <a href="/register" class="btn btn-primary">Register Now</a>
+  </div>
+</section>
+
+<section class="programs-section" id="programs">
+  <h2>Our Programs</h2>
+  <p class="subtitle">Choose the adventure that's right for your child</p>
+  <div class="programs-grid">
+    <% const icons = ['🏕️', '🥾', '🏫']; %>
+    <% programs.forEach((p, i) => { %>
+      <div class="program-card">
+        <div class="icon"><%= icons[i] || '🌿' %></div>
+        <h3><%= p.name %></h3>
+        <p><%= p.description %></p>
+        <a href="/register?program=<%= p.id %>" class="btn btn-green">Sign Up</a>
+      </div>
+    <% }) %>
+  </div>
+</section>
+
+<section class="values-section">
+  <div class="values-grid">
+    <div class="value-item">
+      <div class="icon">🧒</div>
+      <div>
+        <h4>Small Group Setting</h4>
+        <p>Individual attention in groups of 12 or fewer, building confidence and lasting friendships.</p>
+      </div>
+    </div>
+    <div class="value-item">
+      <div class="icon">🌲</div>
+      <div>
+        <h4>Nature Exploration</h4>
+        <p>Hikes, wildlife discovery, and outdoor wonder in safe, beautiful environments.</p>
+      </div>
+    </div>
+    <div class="value-item">
+      <div class="icon">👑</div>
+      <div>
+        <h4>Confidence &amp; Resilience</h4>
+        <p>Children learn to take healthy risks, solve problems, and trust themselves.</p>
+      </div>
+    </div>
+    <div class="value-item">
+      <div class="icon">🎨</div>
+      <div>
+        <h4>Curiosity &amp; Creativity</h4>
+        <p>Art, storytelling, and imagination woven into every outdoor adventure.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer class="site-footer" id="contact">
+  <p>World in Wonder &mdash; Nature Programs for Young Explorers</p>
+  <p>Roy's Redwoods, Deer Park, Wall Hill &mdash; Fairfax, CA</p>
+  <div class="footer-links">
+    <a href="tel:+14152722241">415-272-2241</a>
+    <a href="mailto:info@worldinwonder.com">Email Us</a>
+  </div>
+</footer>
+
+<%- include('layout_foot') %>

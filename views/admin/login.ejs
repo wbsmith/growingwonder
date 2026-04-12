@@ -1,0 +1,24 @@
+<%- include('../layout_head', { title: 'Admin Login' }) %>
+<link rel="stylesheet" href="/css/admin.css">
+
+<div class="login-page">
+  <div class="login-box">
+    <h1>Admin Login</h1>
+    <% if (typeof flash !== 'undefined' && flash) { %>
+      <div class="flash flash-<%= flash.type %>" style="margin-bottom: 16px;"><%= flash.msg %></div>
+    <% } %>
+    <form method="POST" action="/admin/login">
+      <div class="form-group">
+        <label>Username</label>
+        <input type="text" name="username" required autofocus>
+      </div>
+      <div class="form-group">
+        <label>Password</label>
+        <input type="password" name="pw" required>
+      </div>
+      <button type="submit" class="btn btn-green" style="width: 100%; margin-top: 8px;">Log In</button>
+    </form>
+  </div>
+</div>
+
+<%- include('../layout_foot') %>

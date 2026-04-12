@@ -1,0 +1,14 @@
+<aside class="admin-sidebar">
+  <div class="brand"><a href="/admin">World in Wonder</a></div>
+  <nav>
+    <a href="/admin" class="<%= active === 'dashboard' ? 'active' : '' %>">Dashboard</a>
+    <a href="/admin/dates" class="<%= active === 'dates' ? 'active' : '' %>">Manage Dates</a>
+    <a href="/admin/enrollments" class="<%= active === 'enrollments' ? 'active' : '' %>">Enrollments</a>
+    <a href="/admin/status" class="<%= active === 'status' ? 'active' : '' %>">Payment Status</a>
+    <a href="/admin/emails" class="<%= active === 'emails' ? 'active' : '' %>">Emails</a>
+    <div class="logout">
+      <a href="/admin/logout">Log Out</a>
+    </div>
+    <a href="/" style="margin-top: 8px; font-size: 0.8rem; opacity: 0.6;">View Site</a>
+  </nav>
+</aside>

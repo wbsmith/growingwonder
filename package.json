@@ -1,0 +1,21 @@
+{
+  "name": "worldinwonder",
+  "version": "1.0.0",
+  "description": "World in Wonder - Nature programs registration and admin",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js",
+    "seed": "node db/seed.js"
+  },
+  "dependencies": {
+    "@aws-sdk/client-dynamodb": "^3.700.0",
+    "@aws-sdk/client-ses": "^3.700.0",
+    "@aws-sdk/lib-dynamodb": "^3.700.0",
+    "@codegenie/serverless-express": "^4.16.0",
+    "cookie-session": "^2.1.0",
+    "ejs": "^3.1.10",
+    "express": "^4.21.2",
+    "ulid": "^2.3.0"
+  }
+}
