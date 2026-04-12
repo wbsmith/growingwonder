@@ -5,7 +5,7 @@
   <div class="nav-links">
     <a href="/#programs">Programs</a>
     <a href="/register">Register</a>
-    <a href="/#contact">Contact</a>
+    <a href="#" onclick="openContactModal(); return false;">Contact</a>
   </div>
 </nav>
 
@@ -14,6 +14,9 @@
     <h1>Step Into the Forest.<br>Grow With Wonder.</h1>
     <p>Nature-based programs for young explorers. Camps, adventure days, and school programs in the heart of Marin County.</p>
     <a href="/register" class="btn btn-primary">Register Now</a>
+    <div style="margin-top: 16px;">
+      <a href="#" onclick="openContactModal(); return false;" style="color: rgba(255,255,255,0.85); font-weight: 600;">Get in touch</a>
+    </div>
   </div>
 </section>
 
@@ -74,5 +77,145 @@
     <a href="mailto:info@worldinwonder.com">Email Us</a>
   </div>
 </footer>
+
+<!-- Contact Modal -->
+<div id="contactModal" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.4); z-index: 100; align-items: center; justify-content: center;">
+  <div style="background: var(--white); border-radius: 12px; padding: 32px; max-width: 480px; width: 90%; box-shadow: 0 8px 30px rgba(0,0,0,0.2); max-height: 90vh; overflow-y: auto;">
+    <h3 style="color: var(--green-dark); margin-bottom: 20px; font-family: 'Playfair Display', serif;">Get in Touch</h3>
+
+    <form id="contactForm">
+      <div class="form-group">
+        <label>Your Name</label>
+        <input type="text" name="name" id="cName">
+      </div>
+      <div class="form-group">
+        <label>Email</label>
+        <input type="email" name="email" id="cEmail">
+      </div>
+      <div class="form-group">
+        <label>Phone</label>
+        <input type="tel" name="phone" id="cPhone" placeholder="(555) 123-4567">
+      </div>
+      <div class="form-group">
+        <label>Subject</label>
+        <select name="subject" id="cSubject" required>
+          <option value="General Inquiry">General Inquiry</option>
+          <% programs.forEach(p => { %>
+            <option value="<%= p.name %>"><%= p.name %></option>
+          <% }) %>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Message <span class="req">*</span></label>
+        <textarea name="message" id="cMessage" rows="4" maxlength="250" required
+          style="resize: vertical;"></textarea>
+        <div style="text-align: right; font-size: 0.8rem; color: var(--text-light);">
+          <span id="charCount">0</span>/250
+        </div>
+      </div>
+      <div id="contactError" style="display: none; color: var(--red); font-size: 0.85rem; margin-bottom: 12px;"></div>
+      <div id="contactSuccess" style="display: none; color: var(--green-dark); font-size: 0.85rem; margin-bottom: 12px;"></div>
+      <div style="display: flex; gap: 12px;">
+        <button type="submit" class="btn btn-green" id="contactSubmit">Send</button>
+        <button type="button" class="btn btn-outline" onclick="closeContactModal()">Cancel</button>
+      </div>
+    </form>
+
+    <div style="margin-top: 24px; padding-top: 16px; border-top: 1px solid #eee; font-size: 0.9rem; color: var(--text-light);">
+      You can also reach us directly:
+      <div style="margin-top: 8px;">
+        <a href="tel:+14152722241" style="display: block; margin-bottom: 4px;">415-272-2241</a>
+        <a href="mailto:info@worldinwonder.com">info@worldinwonder.com</a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+function openContactModal() {
+  document.getElementById('contactModal').style.display = 'flex';
+  document.getElementById('contactForm').reset();
+  document.getElementById('charCount').textContent = '0';
+  document.getElementById('contactError').style.display = 'none';
+  document.getElementById('contactSuccess').style.display = 'none';
+  document.getElementById('contactSubmit').disabled = false;
+}
+
+function closeContactModal() {
+  document.getElementById('contactModal').style.display = 'none';
+}
+
+document.getElementById('contactModal').addEventListener('click', function(e) {
+  if (e.target === this) closeContactModal();
+});
+
+document.getElementById('cMessage').addEventListener('input', function() {
+  document.getElementById('charCount').textContent = this.value.length;
+});
+
+// Auto-format phone
+document.getElementById('cPhone').addEventListener('input', function() {
+  const digits = this.value.replace(/\D/g, '').slice(0, 10);
+  let formatted = '';
+  if (digits.length > 0) formatted = '(' + digits.slice(0, 3);
+  if (digits.length >= 3) formatted += ') ';
+  if (digits.length > 3) formatted += digits.slice(3, 6);
+  if (digits.length >= 6) formatted += '-';
+  if (digits.length > 6) formatted += digits.slice(6, 10);
+  this.value = formatted;
+});
+
+document.getElementById('contactForm').addEventListener('submit', async function(e) {
+  e.preventDefault();
+  const errEl = document.getElementById('contactError');
+  const succEl = document.getElementById('contactSuccess');
+  const btn = document.getElementById('contactSubmit');
+  errEl.style.display = 'none';
+  succEl.style.display = 'none';
+
+  const email = document.getElementById('cEmail').value.trim();
+  const phone = document.getElementById('cPhone').value.trim();
+  if (!email && !phone) {
+    errEl.textContent = 'Please provide at least an email or phone number.';
+    errEl.style.display = 'block';
+    return;
+  }
+
+  btn.disabled = true;
+  btn.textContent = 'Sending...';
+
+  try {
+    const res = await fetch('/inquiry', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name: document.getElementById('cName').value.trim(),
+        email,
+        phone,
+        subject: document.getElementById('cSubject').value,
+        message: document.getElementById('cMessage').value.trim(),
+      }),
+    });
+    const data = await res.json();
+    if (data.ok) {
+      succEl.textContent = 'Thank you! We\'ll be in touch soon.';
+      succEl.style.display = 'block';
+      document.getElementById('contactForm').reset();
+      document.getElementById('charCount').textContent = '0';
+      setTimeout(closeContactModal, 2000);
+    } else {
+      errEl.textContent = data.error || 'Something went wrong.';
+      errEl.style.display = 'block';
+      btn.disabled = false;
+      btn.textContent = 'Send';
+    }
+  } catch (err) {
+    errEl.textContent = 'Failed to send. Please try again.';
+    errEl.style.display = 'block';
+    btn.disabled = false;
+    btn.textContent = 'Send';
+  }
+});
+</script>
 
 <%- include('layout_foot') %>

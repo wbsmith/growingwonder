@@ -30,7 +30,8 @@ router.get('/', requireAuth, asyncHandler(async (req, res) => {
   const programs = await db.getAllPrograms();
   const stats = await db.getDashboardStats();
   const pendingEmails = await db.countPendingEmails();
-  res.render('admin/dashboard', { programs, stats, pendingEmails });
+  const newInquiries = await db.countNewInquiries();
+  res.render('admin/dashboard', { programs, stats, pendingEmails, newInquiries });
 }));
 
 // Enrollments
@@ -286,6 +287,44 @@ router.get('/roster', requireAuth, asyncHandler(async (req, res) => {
   }
 
   res.render('admin/roster', { program, weekStart, rosterByDay });
+}));
+
+// Inquiries
+router.get('/inquiries', requireAuth, asyncHandler(async (req, res) => {
+  const inquiries = await db.getAllInquiries();
+  res.render('admin/inquiries', { inquiries });
+}));
+
+router.get('/inquiries/:id', requireAuth, asyncHandler(async (req, res) => {
+  const inquiry = await db.getInquiry(req.params.id);
+  if (!inquiry) return res.status(404).send('Not found');
+  res.render('admin/inquiry_detail', { inquiry });
+}));
+
+router.post('/inquiries/:id/reply', requireAuth, asyncHandler(async (req, res) => {
+  const { reply } = req.body;
+  const inquiry = await db.getInquiry(req.params.id);
+  if (!inquiry) return res.status(404).send('Not found');
+
+  if (!reply || !reply.trim()) {
+    req.session.flash = { type: 'error', msg: 'Reply cannot be empty.' };
+    return res.redirect(303, '/admin/inquiries/' + req.params.id);
+  }
+
+  // Send the reply via SES
+  if (inquiry.email && mailer.isConfigured()) {
+    try {
+      await mailer.send(inquiry.email, `Re: ${inquiry.subject}`, reply, 'info');
+    } catch (err) {
+      console.error('Failed to send inquiry reply:', err);
+      req.session.flash = { type: 'error', msg: 'Failed to send: ' + err.message };
+      return res.redirect(303, '/admin/inquiries/' + req.params.id);
+    }
+  }
+
+  await db.replyToInquiry(req.params.id, reply);
+  req.session.flash = { type: 'success', msg: inquiry.email ? `Reply sent to ${inquiry.email}.` : 'Reply saved (no email on file).' };
+  res.redirect(303, '/admin/inquiries');
 }));
 
 // Program management

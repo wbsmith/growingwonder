@@ -18,6 +18,7 @@ const client = DynamoDBDocumentClient.from(new DynamoDBClient(clientConfig));
 
 const T = {
   programs: 'wiw-programs',
+  inquiries: 'wiw-inquiries',
   dates: 'wiw-dates',
   registrations: 'wiw-registrations',
   emails: 'wiw-email-queue',
@@ -301,6 +302,70 @@ async function getDashboardStats() {
   return stats;
 }
 
+// ---- Inquiries ----
+
+async function createInquiry(data) {
+  const id = ulid();
+  const item = {
+    id,
+    name: data.name || null,
+    email: data.email || null,
+    phone: data.phone || null,
+    subject: data.subject,
+    message: data.message,
+    status: 'new',
+    reply: null,
+    repliedAt: null,
+    createdAt: new Date().toISOString(),
+  };
+  await client.send(new PutCommand({ TableName: T.inquiries, Item: item }));
+  return id;
+}
+
+async function getAllInquiries() {
+  const { Items } = await client.send(new ScanCommand({ TableName: T.inquiries }));
+  return (Items || []).sort((a, b) => {
+    const statusOrder = { 'new': 0, replied: 1 };
+    const sa = statusOrder[a.status] ?? 2;
+    const sb = statusOrder[b.status] ?? 2;
+    if (sa !== sb) return sa - sb;
+    return b.createdAt.localeCompare(a.createdAt);
+  });
+}
+
+async function getInquiry(id) {
+  const { Item } = await client.send(new GetCommand({
+    TableName: T.inquiries, Key: { id },
+  }));
+  return Item || null;
+}
+
+async function replyToInquiry(id, replyText) {
+  await client.send(new UpdateCommand({
+    TableName: T.inquiries,
+    Key: { id },
+    UpdateExpression: 'SET #st = :replied, reply = :reply, repliedAt = :now',
+    ExpressionAttributeNames: { '#st': 'status' },
+    ExpressionAttributeValues: {
+      ':replied': 'replied',
+      ':reply': replyText,
+      ':now': new Date().toISOString(),
+    },
+  }));
+}
+
+async function countNewInquiries() {
+  const { Count } = await client.send(new QueryCommand({
+    TableName: T.inquiries,
+    IndexName: 'status-index',
+    KeyConditionExpression: '#st = :new',
+    ExpressionAttributeNames: { '#st': 'status' },
+    ExpressionAttributeValues: { ':new': 'new' },
+    Select: 'COUNT',
+  }));
+  return Count || 0;
+}
+
 module.exports = {
   getAllPrograms, getProgram, createProgram, deleteProgram,
   getDatesByProgram, addDates, removeDate,
@@ -308,4 +373,5 @@ module.exports = {
   countRegistrationsByProgram, updatePayment,
   getAllEmails, getEmail, updateEmailDraft, markEmailSent, markEmailFailed,
   countPendingEmails, getDashboardStats,
+  createInquiry, getAllInquiries, getInquiry, replyToInquiry, countNewInquiries,
 };

@@ -109,4 +109,38 @@ router.get('/register/thanks', (req, res) => {
   res.render('thanks');
 });
 
+router.post('/inquiry', asyncHandler(async (req, res) => {
+  const { name, email, phone, subject, message } = req.body;
+
+  if (!subject || !message) {
+    return res.status(400).json({ error: 'Subject and message are required.' });
+  }
+  if (!email && !phone) {
+    return res.status(400).json({ error: 'Please provide at least an email or phone number.' });
+  }
+  if (message.length > 250) {
+    return res.status(400).json({ error: 'Message must be 250 characters or less.' });
+  }
+
+  await db.createInquiry({ name, email, phone, subject, message });
+
+  // Notify admin via email
+  const mailer = require('../lib/mailer');
+  if (mailer.isConfigured()) {
+    try {
+      const contact = [email, phone].filter(Boolean).join(' / ');
+      await mailer.send(
+        process.env.SES_FROM_EMAIL_INFO,
+        `New Inquiry: ${subject}`,
+        `New inquiry from ${name || 'Anonymous'} (${contact}):\n\n${message}`,
+        'info'
+      );
+    } catch (err) {
+      console.error('Failed to send inquiry notification:', err);
+    }
+  }
+
+  res.json({ ok: true });
+}));
+
 module.exports = router;

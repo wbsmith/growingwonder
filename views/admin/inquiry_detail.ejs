@@ -1,0 +1,52 @@
+<%- include('../layout_head', { title: 'Inquiry' }) %>
+<link rel="stylesheet" href="/css/admin.css">
+
+<div class="admin-layout">
+  <%- include('_sidebar', { active: 'inquiries' }) %>
+  <main class="admin-main">
+    <h1>Inquiry Detail</h1>
+
+    <div class="email-meta">
+      <strong>Subject:</strong> <%= inquiry.subject %><br>
+      <strong>From:</strong> <%= inquiry.name || 'Anonymous' %><br>
+      <% if (inquiry.email) { %><strong>Email:</strong> <%= inquiry.email %><br><% } %>
+      <% if (inquiry.phone) { %><strong>Phone:</strong> <%= inquiry.phone %><br><% } %>
+      <strong>Received:</strong> <%= inquiry.createdAt %><br>
+      <strong>Status:</strong> <span class="badge badge-<%= inquiry.status === 'new' ? 'draft' : 'sent' %>"><%= inquiry.status %></span>
+    </div>
+
+    <div style="background: var(--white); border: 1px solid #ddd; border-radius: var(--radius); padding: 16px; margin-bottom: 24px;">
+      <p><%= inquiry.message %></p>
+    </div>
+
+    <% if (inquiry.reply) { %>
+      <h3 style="margin-bottom: 12px; color: var(--green-dark);">Your Reply</h3>
+      <div style="background: #e8f5e9; border-radius: var(--radius); padding: 16px; margin-bottom: 24px;">
+        <p style="white-space: pre-wrap;"><%= inquiry.reply %></p>
+        <div style="font-size: 0.8rem; color: var(--text-light); margin-top: 8px;">Sent <%= inquiry.repliedAt %></div>
+      </div>
+    <% } %>
+
+    <% if (inquiry.status === 'new') { %>
+      <h3 style="margin-bottom: 12px; color: var(--green-dark);">Reply</h3>
+      <form method="POST" action="/admin/inquiries/<%= inquiry.id %>/reply">
+        <div class="form-group">
+          <textarea name="reply" rows="6" required
+            style="width: 100%; padding: 12px; border: 1px solid #ccc; border-radius: var(--radius); font-family: inherit; font-size: 0.95rem;"
+            placeholder="Type your reply..."></textarea>
+        </div>
+        <div style="display: flex; gap: 12px;">
+          <button type="submit" class="btn btn-green"
+            onclick="return confirm('<%= inquiry.email ? 'Send reply to ' + inquiry.email + '?' : 'Save reply (no email on file — reply will be saved but not sent).' %>')">
+            <%= inquiry.email ? 'Send Reply' : 'Save Reply' %>
+          </button>
+          <a href="/admin/inquiries" class="btn btn-outline">Back</a>
+        </div>
+      </form>
+    <% } else { %>
+      <a href="/admin/inquiries" class="btn btn-outline">Back to Inquiries</a>
+    <% } %>
+  </main>
+</div>
+
+<%- include('../layout_foot') %>
