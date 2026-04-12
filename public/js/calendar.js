@@ -203,7 +203,8 @@
           if (c.avail) {
             if (c.avail.available <= 0) {
               cell.classList.add('full');
-              cell.title = 'Full';
+              cell.textContent = c.dom + ' Full';
+              cell.title = 'This date is full';
             } else {
               cell.classList.add('available');
               cell.title = `${c.avail.available} of ${c.avail.capacity} spots`;

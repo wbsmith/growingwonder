@@ -382,8 +382,9 @@ a:hover { color: var(--green-dark); }
 }
 .calendar-grid .day-cell.full {
   color: #bbb;
-  text-decoration: line-through;
   cursor: not-allowed;
+  font-size: 0.6rem;
+  white-space: nowrap;
 }
 
 /* Week column header */
