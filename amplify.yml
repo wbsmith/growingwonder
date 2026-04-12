@@ -15,6 +15,7 @@ frontend:
         - cp -r db .amplify-hosting/compute/default/
         - cp app.js lambda.js package.json package-lock.json .amplify-hosting/compute/default/
         - cp deploy-manifest.json .amplify-hosting/deploy-manifest.json
+        - env | grep -E '^(SESSION_SECRET|ADMIN_USER|ADMIN_PASS|SES_FROM_EMAIL)' > .amplify-hosting/compute/default/.env
         - cd .amplify-hosting/compute/default && npm ci --omit=dev
   artifacts:
     baseDirectory: .amplify-hosting
