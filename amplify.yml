@@ -14,8 +14,8 @@ frontend:
         - cp -r routes .amplify-hosting/compute/default/
         - cp -r db .amplify-hosting/compute/default/
         - cp app.js lambda.js package.json package-lock.json .amplify-hosting/compute/default/
-        - cd .amplify-hosting/compute/default && npm ci --omit=dev
         - cp deploy-manifest.json .amplify-hosting/deploy-manifest.json
+        - cd .amplify-hosting/compute/default && npm ci --omit=dev
   artifacts:
     baseDirectory: .amplify-hosting
     files:
