@@ -1,16 +1,34 @@
 {
   "version": 1,
+  "framework": {
+    "name": "express",
+    "version": "4.21.2"
+  },
   "routes": [
-    { "path": "/css/*", "target": { "kind": "Static" } },
-    { "path": "/js/*", "target": { "kind": "Static" } },
-    { "path": "/*", "target": { "kind": "Compute", "src": "default" } }
+    {
+      "path": "/*.*",
+      "target": {
+        "kind": "Static",
+        "cacheControl": "public, max-age=3600"
+      },
+      "fallback": {
+        "kind": "Compute",
+        "src": "default"
+      }
+    },
+    {
+      "path": "/*",
+      "target": {
+        "kind": "Compute",
+        "src": "default"
+      }
+    }
   ],
   "computeResources": [
     {
       "name": "default",
-      "entrypoint": "lambda.js",
-      "runtime": "nodejs20x"
+      "runtime": "nodejs22.x",
+      "entrypoint": "lambda.js"
     }
-  ],
-  "framework": { "name": "express", "version": "4.x" }
+  ]
 }
