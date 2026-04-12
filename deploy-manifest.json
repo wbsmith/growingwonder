@@ -1,0 +1,16 @@
+{
+  "version": 1,
+  "routes": [
+    { "path": "/css/*", "target": { "kind": "Static" } },
+    { "path": "/js/*", "target": { "kind": "Static" } },
+    { "path": "/*", "target": { "kind": "Compute", "src": "default" } }
+  ],
+  "computeResources": [
+    {
+      "name": "default",
+      "entrypoint": "lambda.js",
+      "runtime": "nodejs20x"
+    }
+  ],
+  "framework": { "name": "express", "version": "4.x" }
+}

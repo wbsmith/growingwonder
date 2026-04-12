@@ -15,25 +15,7 @@ frontend:
         - cp -r db .amplify-hosting/compute/default/
         - cp app.js lambda.js package.json package-lock.json .amplify-hosting/compute/default/
         - cd .amplify-hosting/compute/default && npm ci --omit=dev
-        - |
-          cat > .amplify-hosting/deploy-manifest.json << 'MANIFEST'
-          {
-            "version": 1,
-            "routes": [
-              { "path": "/css/*", "target": { "kind": "Static" } },
-              { "path": "/js/*", "target": { "kind": "Static" } },
-              { "path": "/*", "target": { "kind": "Compute", "src": "default" } }
-            ],
-            "computeResources": [
-              {
-                "name": "default",
-                "entrypoint": "lambda.js",
-                "runtime": "nodejs20x"
-              }
-            ],
-            "framework": { "name": "express", "version": "4.x" }
-          }
-          MANIFEST
+        - cp deploy-manifest.json .amplify-hosting/deploy-manifest.json
   artifacts:
     baseDirectory: .amplify-hosting
     files:
