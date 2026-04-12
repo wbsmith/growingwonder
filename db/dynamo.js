@@ -7,7 +7,14 @@ const {
 const { ulid } = require('ulid');
 
 const region = process.env.WIW_AWS_REGION || process.env.AWS_REGION || 'us-west-1';
-const client = DynamoDBDocumentClient.from(new DynamoDBClient({ region }));
+const clientConfig = { region };
+if (process.env.WIW_ACCESS_KEY_ID) {
+  clientConfig.credentials = {
+    accessKeyId: process.env.WIW_ACCESS_KEY_ID,
+    secretAccessKey: process.env.WIW_SECRET_ACCESS_KEY,
+  };
+}
+const client = DynamoDBDocumentClient.from(new DynamoDBClient(clientConfig));
 
 const T = {
   programs: 'wiw-programs',
