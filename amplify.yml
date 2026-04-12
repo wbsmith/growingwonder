@@ -15,7 +15,12 @@ frontend:
         - cp -r db .amplify-hosting/compute/default/
         - cp app.js lambda.js package.json package-lock.json .amplify-hosting/compute/default/
         - cp deploy-manifest.json .amplify-hosting/deploy-manifest.json
-        - env | grep -E '^(SESSION_SECRET|ADMIN_USER|ADMIN_PASS|SES_FROM_EMAIL)' > .amplify-hosting/compute/default/.env
+        - echo "SESSION_SECRET=$SESSION_SECRET" > .amplify-hosting/compute/default/.env
+        - echo "ADMIN_USER=$ADMIN_USER" >> .amplify-hosting/compute/default/.env
+        - echo "ADMIN_PASS=$ADMIN_PASS" >> .amplify-hosting/compute/default/.env
+        - echo "SES_FROM_EMAIL_REG=$SES_FROM_EMAIL_REG" >> .amplify-hosting/compute/default/.env
+        - echo "SES_FROM_EMAIL_INFO=$SES_FROM_EMAIL_INFO" >> .amplify-hosting/compute/default/.env
+        - cat .amplify-hosting/compute/default/.env | wc -l
         - cd .amplify-hosting/compute/default && npm ci --omit=dev
   artifacts:
     baseDirectory: .amplify-hosting
