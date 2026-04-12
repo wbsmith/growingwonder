@@ -6,7 +6,7 @@ const {
 } = require('@aws-sdk/lib-dynamodb');
 const { ulid } = require('ulid');
 
-const region = process.env.AWS_REGION || 'us-west-1';
+const region = process.env.WIW_AWS_REGION || process.env.AWS_REGION || 'us-west-1';
 const client = DynamoDBDocumentClient.from(new DynamoDBClient({ region }));
 
 const T = {
