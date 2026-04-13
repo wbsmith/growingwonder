@@ -410,6 +410,47 @@ async function countNewInquiries() {
   return Count || 0;
 }
 
+// ---- Bulk email helpers ----
+
+async function getEmailsByDate(programId, date) {
+  const regs = await getRegistrationsByProgram(programId);
+  const emails = new Set();
+  for (const r of regs) {
+    if ((r.selectedDates || []).includes(date)) {
+      emails.add(r.parentEmail);
+    }
+  }
+  return Array.from(emails);
+}
+
+async function getEmailsByWeek(programId, weekStart) {
+  const start = new Date(weekStart + 'T00:00:00');
+  const weekDates = [];
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(start);
+    d.setDate(d.getDate() + i);
+    weekDates.push(d.toISOString().slice(0, 10));
+  }
+  const regs = await getRegistrationsByProgram(programId);
+  const emails = new Set();
+  for (const r of regs) {
+    if ((r.selectedDates || []).some(d => weekDates.includes(d))) {
+      emails.add(r.parentEmail);
+    }
+  }
+  return Array.from(emails);
+}
+
+async function getAllEmails_addresses() {
+  const { Items } = await client.send(new ScanCommand({
+    TableName: T.registrations,
+    ProjectionExpression: 'parentEmail',
+  }));
+  const emails = new Set();
+  (Items || []).forEach(r => { if (r.parentEmail) emails.add(r.parentEmail); });
+  return Array.from(emails);
+}
+
 module.exports = {
   getAllPrograms, getProgram, createProgram, deleteProgram,
   updateProgramDescription, updateProgramHero, addProgramMedia, removeProgramMedia,
@@ -419,4 +460,5 @@ module.exports = {
   getAllEmails, getEmail, updateEmailDraft, markEmailSent, markEmailFailed,
   countPendingEmails, getDashboardStats,
   createInquiry, getAllInquiries, getInquiry, replyToInquiry, countNewInquiries,
+  getEmailsByDate, getEmailsByWeek, getAllEmails_addresses,
 };

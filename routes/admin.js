@@ -290,6 +290,86 @@ router.get('/roster', requireAuth, asyncHandler(async (req, res) => {
   res.render('admin/roster', { program, weekStart, rosterByDay });
 }));
 
+// Bulk email
+router.get('/bulk-email', requireAuth, asyncHandler(async (req, res) => {
+  const programs = await db.getAllPrograms();
+
+  // Build week options per program
+  const programWeeks = {};
+  for (const p of programs) {
+    const dates = await db.getDatesByProgram(p.id);
+    const weekSet = new Map();
+    for (const d of dates) {
+      const dt = new Date(d.date + 'T00:00:00');
+      const dow = dt.getDay();
+      const mon = new Date(dt);
+      mon.setDate(mon.getDate() - ((dow + 6) % 7));
+      const monStr = mon.toISOString().slice(0, 10);
+      if (!weekSet.has(monStr)) {
+        const fri = new Date(mon);
+        fri.setDate(fri.getDate() + 4);
+        weekSet.set(monStr, fri.toISOString().slice(0, 10));
+      }
+    }
+    programWeeks[p.id] = {
+      weeks: Array.from(weekSet.entries()).map(([mon, fri]) => ({ monday: mon, friday: fri })),
+      dates: dates.map(d => d.date),
+    };
+  }
+
+  res.render('admin/bulk_email', { programs, programWeeks });
+}));
+
+// Fetch recipients based on selection (AJAX)
+router.post('/bulk-email/recipients', requireAuth, asyncHandler(async (req, res) => {
+  const { scope, programId, date, weekStart } = req.body;
+  let emails = [];
+
+  if (scope === 'all') {
+    emails = await db.getAllEmails_addresses();
+  } else if (scope === 'day' && programId && date) {
+    emails = await db.getEmailsByDate(programId, date);
+  } else if (scope === 'week' && programId && weekStart) {
+    emails = await db.getEmailsByWeek(programId, weekStart);
+  } else if (scope === 'program' && programId) {
+    const regs = await db.getRegistrationsByProgram(programId);
+    const set = new Set();
+    regs.forEach(r => { if (r.parentEmail) set.add(r.parentEmail); });
+    emails = Array.from(set);
+  }
+
+  res.json({ emails, count: emails.length });
+}));
+
+router.post('/bulk-email/send', requireAuth, asyncHandler(async (req, res) => {
+  const { subject, body, recipients } = req.body;
+
+  if (!subject || !body || !recipients) {
+    req.session.flash = { type: 'error', msg: 'Subject, body, and recipients are required.' };
+    return res.redirect(303, '/admin/bulk-email');
+  }
+
+  const emailList = recipients.split(',').map(e => e.trim()).filter(Boolean);
+  if (emailList.length === 0) {
+    req.session.flash = { type: 'error', msg: 'No recipients selected.' };
+    return res.redirect(303, '/admin/bulk-email');
+  }
+
+  if (!mailer.isConfigured()) {
+    req.session.flash = { type: 'error', msg: 'SES not configured.' };
+    return res.redirect(303, '/admin/bulk-email');
+  }
+
+  try {
+    const count = await mailer.sendBulk(emailList, subject, body, 'info');
+    req.session.flash = { type: 'success', msg: `Email sent to ${count} recipient(s).` };
+  } catch (err) {
+    console.error('Bulk email error:', err);
+    req.session.flash = { type: 'error', msg: 'Send failed: ' + err.message };
+  }
+  res.redirect(303, '/admin/bulk-email');
+}));
+
 // Inquiries
 router.get('/inquiries', requireAuth, asyncHandler(async (req, res) => {
   const inquiries = await db.getAllInquiries();
