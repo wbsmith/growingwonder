@@ -376,8 +376,8 @@ a:hover { color: var(--green-dark); }
     background: #e8f5e9;
   }
 }
-.calendar-grid .day-cell.selected {
-  background: var(--green-mid);
+.calendar-grid .day-cell.available.selected {
+  background: var(--green-dark);
   color: var(--white);
   font-weight: 700;
   border: 1px solid var(--green-dark);
