@@ -3,7 +3,7 @@
 <%- include('_nav') %>
 
 <% const overlay = page.heroOverlay || 'rgba(44,74,46,0.8)'; %>
-<section class="program-hero" <% if (page.heroImage) { %>style="background-image: linear-gradient(<%= overlay %>, <%= overlay %>), url('<%= page.heroImage %>');"<% } %>>
+<section class="program-hero" <% if (page.heroImage) { %>style="background-image: linear-gradient(<%= overlay %>, <%= overlay %>), url('<%= page.heroImage %>'); background-position: <%= page.heroPosition || 'center center' %>;"<% } %>>
   <div class="program-hero-content">
     <h1><%= page.heroTitle || 'About' %></h1>
     <% if (page.heroSubtitle) { %><p><%= page.heroSubtitle %></p><% } %>

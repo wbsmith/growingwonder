@@ -4,7 +4,7 @@
 
 <!-- Hero -->
 <% const overlay = program.heroOverlay || 'rgba(44,74,46,0.75)'; %>
-<section class="program-hero" <% if (program.heroImage) { %>style="background-image: linear-gradient(<%= overlay %>, <%= overlay %>), url('<%= program.heroImage %>');"<% } %>>
+<section class="program-hero" <% if (program.heroImage) { %>style="background-image: linear-gradient(<%= overlay %>, <%= overlay %>), url('<%= program.heroImage %>'); background-position: <%= program.heroPosition || 'center center' %>;"<% } %>>
   <div class="program-hero-content">
     <h1><%= program.heroTitle || program.name %></h1>
     <p><%= program.heroSubtitle || program.description %></p>

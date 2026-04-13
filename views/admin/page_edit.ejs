@@ -2,7 +2,7 @@
 <link rel="stylesheet" href="/css/admin.css">
 
 <div class="admin-layout">
-  <%- include('_sidebar', { active: 'pages' }) %>
+  <%- include('_sidebar', { active: 'pages', pageSlug: page.slug }) %>
   <main class="admin-main">
     <h1>Edit: <%= page.heroTitle || page.slug %></h1>
     <p style="margin-bottom: 24px;">
@@ -22,10 +22,17 @@
         <input type="text" name="hero_subtitle" value="<%= page.heroSubtitle || '' %>"
           style="padding: 8px 12px; border: 1px solid #ccc; border-radius: var(--radius); width: 100%;">
       </div>
-      <div class="form-group">
-        <label>Overlay Color <span style="font-weight:normal; color:var(--text-light);">(e.g. rgba(44,74,46,0.8))</span></label>
-        <input type="text" name="hero_overlay" value="<%= page.heroOverlay || '' %>" placeholder="rgba(44,74,46,0.8)"
-          style="padding: 8px 12px; border: 1px solid #ccc; border-radius: var(--radius); width: 100%;">
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+        <div class="form-group">
+          <label>Overlay Color <span style="font-weight:normal; color:var(--text-light);">(e.g. rgba(44,74,46,0.8))</span></label>
+          <input type="text" name="hero_overlay" value="<%= page.heroOverlay || '' %>" placeholder="rgba(44,74,46,0.8)"
+            style="padding: 8px 12px; border: 1px solid #ccc; border-radius: var(--radius); width: 100%;">
+        </div>
+        <div class="form-group">
+          <label>Image Position <span style="font-weight:normal; color:var(--text-light);">(e.g. center top, 50% 30%)</span></label>
+          <input type="text" name="hero_position" value="<%= page.heroPosition || '' %>" placeholder="center center"
+            style="padding: 8px 12px; border: 1px solid #ccc; border-radius: var(--radius); width: 100%;">
+        </div>
       </div>
       <div style="margin-bottom: 12px;">
         <% if (page.heroImage) { %>

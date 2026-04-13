@@ -1,0 +1,22 @@
+<%- include('../layout_head', { title: 'Site Pages' }) %>
+<link rel="stylesheet" href="/css/admin.css">
+
+<div class="admin-layout">
+  <%- include('_sidebar', { active: 'pages' }) %>
+  <main class="admin-main">
+    <h1>Site Pages</h1>
+    <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 20px;">
+      <% pages.forEach(p => { %>
+        <div class="stat-card">
+          <h3 style="color: var(--green-dark); margin-bottom: 8px;"><%= p.title %></h3>
+          <div style="display: flex; gap: 8px;">
+            <a href="/admin/pages/<%= p.slug %>/edit" class="btn btn-outline btn-sm">Edit</a>
+            <a href="/<%= p.slug === 'home' ? '' : p.slug %>" target="_blank" class="btn btn-outline btn-sm">View</a>
+          </div>
+        </div>
+      <% }) %>
+    </div>
+  </main>
+</div>
+
+<%- include('../layout_foot') %>

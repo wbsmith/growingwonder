@@ -2,10 +2,11 @@
 
 <%- include('_nav') %>
 
-<section class="hero">
+<% const homeOverlay = page.heroOverlay || 'rgba(44,74,46,0.85)'; %>
+<section class="hero" <% if (page.heroImage) { %>style="background-image: linear-gradient(<%= homeOverlay %>, <%= homeOverlay %>), url('<%= page.heroImage %>'); background-size: cover; background-position: <%= page.heroPosition || 'center center' %>;"<% } %>>
   <div>
-    <h1>Step Into the Forest.<br>Grow With Wonder.</h1>
-    <p>Nature-based programs for young explorers. Camps, adventure days, and school programs in the heart of <%= site.region %>.</p>
+    <h1><%- (page.heroTitle || 'Step Into the Forest.<br>Grow With Wonder.') %></h1>
+    <p><%= page.heroSubtitle || 'Nature-based programs for young explorers. Camps, adventure days, and school programs in the heart of ' + site.region + '.' %></p>
     <a href="/register" class="btn btn-primary">Register Now</a>
     <div style="margin-top: 16px;">
       <a href="#" onclick="openContactModal(); return false;" style="color: rgba(255,255,255,0.85); font-weight: 600;">Get in touch</a>

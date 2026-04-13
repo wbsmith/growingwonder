@@ -22,10 +22,17 @@
         <input type="text" name="hero_subtitle" value="<%= program.heroSubtitle || '' %>" placeholder="<%= program.description %>"
           style="padding: 8px 12px; border: 1px solid #ccc; border-radius: var(--radius); width: 100%;">
       </div>
-      <div class="form-group">
-        <label>Overlay Color <span style="font-weight:normal; color:var(--text-light);">(CSS color with alpha, e.g. rgba(44,74,46,0.75))</span></label>
-        <input type="text" name="hero_overlay" value="<%= program.heroOverlay || '' %>" placeholder="rgba(44,74,46,0.75)"
-          style="padding: 8px 12px; border: 1px solid #ccc; border-radius: var(--radius); width: 100%;">
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+        <div class="form-group">
+          <label>Overlay Color <span style="font-weight:normal; color:var(--text-light);">(e.g. rgba(44,74,46,0.75))</span></label>
+          <input type="text" name="hero_overlay" value="<%= program.heroOverlay || '' %>" placeholder="rgba(44,74,46,0.75)"
+            style="padding: 8px 12px; border: 1px solid #ccc; border-radius: var(--radius); width: 100%;">
+        </div>
+        <div class="form-group">
+          <label>Image Position <span style="font-weight:normal; color:var(--text-light);">(e.g. center top, 50% 30%)</span></label>
+          <input type="text" name="hero_position" value="<%= program.heroPosition || '' %>" placeholder="center center"
+            style="padding: 8px 12px; border: 1px solid #ccc; border-radius: var(--radius); width: 100%;">
+        </div>
       </div>
       <div style="margin-bottom: 12px;">
         <% if (program.heroImage) { %>

@@ -7,7 +7,8 @@ const asyncHandler = fn => (req, res, next) => Promise.resolve(fn(req, res, next
 
 router.get('/', asyncHandler(async (req, res) => {
   const programs = await db.getAllPrograms();
-  res.render('home', { programs });
+  const page = await db.getPage('home') || {};
+  res.render('home', { programs, page });
 }));
 
 router.get('/about', asyncHandler(async (req, res) => {

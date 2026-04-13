@@ -3,7 +3,12 @@
   <nav>
     <a href="/admin" class="<%= active === 'dashboard' ? 'active' : '' %>">Dashboard</a>
     <a href="/admin/programs" class="<%= active === 'programs' ? 'active' : '' %>">Programs</a>
-    <a href="/admin/pages/about/edit" class="<%= active === 'pages' ? 'active' : '' %>">About Page</a>
+
+    <a href="/admin/pages" class="<%= active === 'pages' ? 'active' : '' %>">Site Pages</a>
+    <% if (active === 'pages') { %>
+      <a href="/admin/pages/home/edit" class="sub <%= typeof pageSlug !== 'undefined' && pageSlug === 'home' ? 'active' : '' %>">Home</a>
+      <a href="/admin/pages/about/edit" class="sub <%= typeof pageSlug !== 'undefined' && pageSlug === 'about' ? 'active' : '' %>">About</a>
+    <% } %>
 
     <a href="/admin/enrollments" class="<%= active === 'enrollments' ? 'active' : '' %>">Enrollments</a>
     <% if (active === 'enrollments') { %>

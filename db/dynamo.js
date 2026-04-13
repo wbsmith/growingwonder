@@ -71,6 +71,7 @@ async function updateProgramHero(id, data) {
   if (data.heroTitle !== undefined) { expr.push('heroTitle = :ht'); vals[':ht'] = data.heroTitle || null; }
   if (data.heroSubtitle !== undefined) { expr.push('heroSubtitle = :hs'); vals[':hs'] = data.heroSubtitle || null; }
   if (data.heroOverlay !== undefined) { expr.push('heroOverlay = :ho'); vals[':ho'] = data.heroOverlay || null; }
+  if (data.heroPosition !== undefined) { expr.push('heroPosition = :hp'); vals[':hp'] = data.heroPosition || null; }
   if (expr.length === 0) return;
   await client.send(new UpdateCommand({
     TableName: T.programs,

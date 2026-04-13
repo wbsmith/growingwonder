@@ -76,7 +76,17 @@ router.post('/programs/remove', requireAuth, asyncHandler(async (req, res) => {
   res.redirect('/admin/programs');
 }));
 
-// Page editor (About, etc.)
+// Site Pages
+router.get('/pages', requireAuth, (req, res) => {
+  res.render('admin/pages', {
+    pages: [
+      { slug: 'home', title: 'Home Page' },
+      { slug: 'about', title: 'About Page' },
+    ]
+  });
+});
+
+// Page editor
 router.get('/pages/:slug/edit', requireAuth, asyncHandler(async (req, res) => {
   const page = await db.getPage(req.params.slug) || { slug: req.params.slug };
   res.render('admin/page_edit', { page });
@@ -89,12 +99,13 @@ router.post('/pages/:slug/content', requireAuth, asyncHandler(async (req, res) =
 }));
 
 router.post('/pages/:slug/hero', requireAuth, asyncHandler(async (req, res) => {
-  const { url, hero_title, hero_subtitle, hero_overlay } = req.body;
+  const { url, hero_title, hero_subtitle, hero_overlay, hero_position } = req.body;
   const data = {};
   if (url !== undefined) data.heroImage = url;
   if (hero_title !== undefined) data.heroTitle = hero_title;
   if (hero_subtitle !== undefined) data.heroSubtitle = hero_subtitle;
   if (hero_overlay !== undefined) data.heroOverlay = hero_overlay;
+  if (hero_position !== undefined) data.heroPosition = hero_position;
   await db.savePage(req.params.slug, data);
   req.session.flash = { type: 'success', msg: 'Hero updated.' };
   res.redirect(303, '/admin/pages/' + req.params.slug + '/edit');
@@ -141,12 +152,13 @@ router.post('/programs/:id/media/remove', requireAuth, asyncHandler(async (req, 
 }));
 
 router.post('/programs/:id/hero', requireAuth, asyncHandler(async (req, res) => {
-  const { url, hero_title, hero_subtitle, hero_overlay } = req.body;
+  const { url, hero_title, hero_subtitle, hero_overlay, hero_position } = req.body;
   const data = {};
   if (url !== undefined) data.heroImage = url;
   if (hero_title !== undefined) data.heroTitle = hero_title;
   if (hero_subtitle !== undefined) data.heroSubtitle = hero_subtitle;
   if (hero_overlay !== undefined) data.heroOverlay = hero_overlay;
+  if (hero_position !== undefined) data.heroPosition = hero_position;
   await db.updateProgramHero(req.params.id, data);
   req.session.flash = { type: 'success', msg: 'Hero updated.' };
   res.redirect(303, '/admin/programs/' + req.params.id + '/edit');
