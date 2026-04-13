@@ -10,6 +10,11 @@ router.get('/', asyncHandler(async (req, res) => {
   res.render('home', { programs });
 }));
 
+router.get('/about', asyncHandler(async (req, res) => {
+  const page = await db.getPage('about') || {};
+  res.render('about', { page });
+}));
+
 router.get('/programs/:id', asyncHandler(async (req, res) => {
   const program = await db.getProgram(req.params.id);
   if (!program) return res.status(404).send('Program not found');

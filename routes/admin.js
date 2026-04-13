@@ -76,6 +76,36 @@ router.post('/programs/remove', requireAuth, asyncHandler(async (req, res) => {
   res.redirect('/admin/programs');
 }));
 
+// Page editor (About, etc.)
+router.get('/pages/:slug/edit', requireAuth, asyncHandler(async (req, res) => {
+  const page = await db.getPage(req.params.slug) || { slug: req.params.slug };
+  res.render('admin/page_edit', { page });
+}));
+
+router.post('/pages/:slug/content', requireAuth, asyncHandler(async (req, res) => {
+  await db.savePage(req.params.slug, { body: req.body.body || null });
+  req.session.flash = { type: 'success', msg: 'Page content updated.' };
+  res.redirect(303, '/admin/pages/' + req.params.slug + '/edit');
+}));
+
+router.post('/pages/:slug/hero', requireAuth, asyncHandler(async (req, res) => {
+  const { url, hero_title, hero_subtitle, hero_overlay } = req.body;
+  const data = {};
+  if (url !== undefined) data.heroImage = url;
+  if (hero_title !== undefined) data.heroTitle = hero_title;
+  if (hero_subtitle !== undefined) data.heroSubtitle = hero_subtitle;
+  if (hero_overlay !== undefined) data.heroOverlay = hero_overlay;
+  await db.savePage(req.params.slug, data);
+  req.session.flash = { type: 'success', msg: 'Hero updated.' };
+  res.redirect(303, '/admin/pages/' + req.params.slug + '/edit');
+}));
+
+router.post('/pages/:slug/upload-url', requireAuth, asyncHandler(async (req, res) => {
+  const { filename, contentType } = req.body;
+  const result = await storage.getUploadUrl('pages-' + req.params.slug, filename, contentType);
+  res.json(result);
+}));
+
 // Program content editor
 router.get('/programs/:id/edit', requireAuth, asyncHandler(async (req, res) => {
   const program = await db.getProgram(req.params.id);

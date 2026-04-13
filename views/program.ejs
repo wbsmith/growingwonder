@@ -1,13 +1,6 @@
 <%- include('layout_head', { title: program.name }) %>
 
-<nav class="site-nav">
-  <a href="/" class="logo"><%= site.name %></a>
-  <div class="nav-links">
-    <a href="/#programs">Programs</a>
-    <a href="/register">Register</a>
-    <a href="#" onclick="if(typeof openContactModal==='function')openContactModal(); return false;">Contact</a>
-  </div>
-</nav>
+<%- include('_nav') %>
 
 <!-- Hero -->
 <% const overlay = program.heroOverlay || 'rgba(44,74,46,0.75)'; %>

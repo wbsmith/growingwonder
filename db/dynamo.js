@@ -19,6 +19,7 @@ const client = DynamoDBDocumentClient.from(new DynamoDBClient(clientConfig));
 const T = {
   programs: 'wiw-programs',
   inquiries: 'wiw-inquiries',
+  pages: 'wiw-pages',
   dates: 'wiw-dates',
   registrations: 'wiw-registrations',
   emails: 'wiw-email-queue',
@@ -458,6 +459,22 @@ async function getAllEmails_addresses() {
   return Array.from(emails);
 }
 
+// ---- Pages ----
+
+async function getPage(slug) {
+  const { Item } = await client.send(new GetCommand({
+    TableName: T.pages, Key: { slug },
+  }));
+  return Item || null;
+}
+
+async function savePage(slug, data) {
+  const existing = await getPage(slug);
+  const item = { slug, ...existing, ...data, updatedAt: new Date().toISOString() };
+  if (!existing) item.createdAt = new Date().toISOString();
+  await client.send(new PutCommand({ TableName: T.pages, Item: item }));
+}
+
 module.exports = {
   getAllPrograms, getProgram, createProgram, deleteProgram,
   updateProgramDescription, updateProgramHero, addProgramMedia, removeProgramMedia,
@@ -468,4 +485,5 @@ module.exports = {
   countPendingEmails, getDashboardStats,
   createInquiry, getAllInquiries, getInquiry, replyToInquiry, countNewInquiries,
   getEmailsByDate, getEmailsByWeek, getAllEmails_addresses,
+  getPage, savePage,
 };

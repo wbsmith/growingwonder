@@ -1,13 +1,6 @@
 <%- include('layout_head', { title: 'Home' }) %>
 
-<nav class="site-nav">
-  <a href="/" class="logo"><%= site.name %></a>
-  <div class="nav-links">
-    <a href="/#programs">Programs</a>
-    <a href="/register">Register</a>
-    <a href="#" onclick="openContactModal(); return false;">Contact</a>
-  </div>
-</nav>
+<%- include('_nav') %>
 
 <section class="hero">
   <div>

@@ -1,0 +1,142 @@
+<%- include('../layout_head', { title: 'Edit ' + (page.heroTitle || page.slug) }) %>
+<link rel="stylesheet" href="/css/admin.css">
+
+<div class="admin-layout">
+  <%- include('_sidebar', { active: 'pages' }) %>
+  <main class="admin-main">
+    <h1>Edit: <%= page.heroTitle || page.slug %></h1>
+    <p style="margin-bottom: 24px;">
+      <a href="/<%= page.slug %>" target="_blank" class="btn btn-outline btn-sm">Preview Page</a>
+    </p>
+
+    <!-- Hero Section -->
+    <h2 style="margin-bottom: 12px;">Hero</h2>
+    <form method="POST" action="/admin/pages/<%= page.slug %>/hero" id="heroForm" style="margin-bottom: 24px; background: var(--sand); border-radius: var(--radius); padding: 20px;">
+      <div class="form-group">
+        <label>Title</label>
+        <input type="text" name="hero_title" value="<%= page.heroTitle || '' %>" placeholder="About"
+          style="padding: 8px 12px; border: 1px solid #ccc; border-radius: var(--radius); width: 100%;">
+      </div>
+      <div class="form-group">
+        <label>Subtitle</label>
+        <input type="text" name="hero_subtitle" value="<%= page.heroSubtitle || '' %>"
+          style="padding: 8px 12px; border: 1px solid #ccc; border-radius: var(--radius); width: 100%;">
+      </div>
+      <div class="form-group">
+        <label>Overlay Color <span style="font-weight:normal; color:var(--text-light);">(e.g. rgba(44,74,46,0.8))</span></label>
+        <input type="text" name="hero_overlay" value="<%= page.heroOverlay || '' %>" placeholder="rgba(44,74,46,0.8)"
+          style="padding: 8px 12px; border: 1px solid #ccc; border-radius: var(--radius); width: 100%;">
+      </div>
+      <div style="margin-bottom: 12px;">
+        <% if (page.heroImage) { %>
+          <img src="<%= page.heroImage %>" style="max-width: 300px; border-radius: var(--radius); border: 1px solid #ddd; margin-bottom: 8px; display: block;">
+        <% } %>
+        <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+          <input type="file" id="heroFile" accept="image/*" style="font-size: 0.85rem;">
+          <button type="button" class="btn btn-outline btn-sm" onclick="uploadHeroImage()">Upload Image</button>
+          <% if (page.heroImage) { %>
+            <button type="button" class="btn btn-danger btn-sm" onclick="document.getElementById('heroUrlHidden').value=''; document.getElementById('heroForm').submit();">Remove Image</button>
+          <% } %>
+        </div>
+        <div id="heroStatus" style="font-size: 0.85rem; color: var(--text-light); margin-top: 8px;"></div>
+      </div>
+      <input type="hidden" name="url" id="heroUrlHidden" value="<%= page.heroImage || '' %>">
+      <button type="submit" class="btn btn-green btn-sm">Save Hero</button>
+    </form>
+
+    <!-- Body Content -->
+    <h2 style="margin-bottom: 12px;">Content</h2>
+    <link href="https://cdn.jsdelivr.net/npm/quill@2/dist/quill.snow.css" rel="stylesheet">
+    <form method="POST" action="/admin/pages/<%= page.slug %>/content" id="bodyForm" style="margin-bottom: 32px;">
+      <div id="editor" style="min-height: 300px; background: var(--white); border-radius: 0 0 var(--radius) var(--radius);"></div>
+      <input type="hidden" name="body" id="bodyHidden">
+      <button type="submit" class="btn btn-green btn-sm" style="margin-top: 12px;">Save Content</button>
+    </form>
+    <script src="https://cdn.jsdelivr.net/npm/quill@2/dist/quill.js"></script>
+    <script>
+    let existingContent = <%- JSON.stringify(page.body || '') %>;
+    if (existingContent && !existingContent.includes('<')) {
+      existingContent = existingContent.split(/\n+/).filter(Boolean).map(p => '<p>' + p + '</p>').join('');
+    }
+    document.getElementById('editor').innerHTML = existingContent;
+
+    const quill = new Quill('#editor', {
+      theme: 'snow',
+      modules: {
+        toolbar: {
+          container: [
+            [{ 'header': [2, 3, false] }],
+            ['bold', 'italic', 'underline'],
+            [{ 'color': [] }, { 'background': [] }],
+            [{ 'align': [] }, { 'align': 'center' }, { 'align': 'right' }],
+            [{ 'list': 'ordered' }, { 'list': 'bullet' }],
+            ['link', 'image'],
+            ['clean'],
+            ['html-toggle']
+          ]
+        }
+      },
+      placeholder: 'Page content...'
+    });
+
+    // HTML toggle
+    const htmlBtn = document.querySelector('.ql-html-toggle');
+    if (htmlBtn) { htmlBtn.innerHTML = '&lt;/&gt;'; htmlBtn.title = 'Edit HTML source'; }
+    let htmlMode = false, htmlTextarea = null;
+    if (htmlBtn) htmlBtn.addEventListener('click', function() {
+      if (!htmlMode) {
+        htmlTextarea = document.createElement('textarea');
+        htmlTextarea.style.cssText = 'width:100%; min-height:300px; padding:12px; font-family:monospace; font-size:0.85rem; border:1px solid #ccc;';
+        htmlTextarea.value = quill.root.innerHTML;
+        quill.container.style.display = 'none';
+        quill.container.parentNode.insertBefore(htmlTextarea, quill.container.nextSibling);
+        htmlBtn.style.background = '#e8f5e9';
+      } else {
+        quill.root.innerHTML = htmlTextarea.value;
+        htmlTextarea.remove(); htmlTextarea = null;
+        quill.container.style.display = '';
+        htmlBtn.style.background = '';
+      }
+      htmlMode = !htmlMode;
+    });
+
+    document.getElementById('bodyForm').addEventListener('submit', function() {
+      if (htmlMode && htmlTextarea) quill.root.innerHTML = htmlTextarea.value;
+      const html = quill.root.innerHTML;
+      document.getElementById('bodyHidden').value = (html === '<p><br></p>') ? '' : html;
+    });
+    </script>
+
+    <!-- Upload helper -->
+    <script>
+    async function getPresignedUrl(filename, contentType) {
+      const res = await fetch('/admin/pages/<%= page.slug %>/upload-url', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ filename, contentType }),
+      });
+      return res.json();
+    }
+
+    async function uploadHeroImage() {
+      const file = document.getElementById('heroFile').files[0];
+      const status = document.getElementById('heroStatus');
+      if (!file) { status.textContent = 'Select a file first.'; return; }
+      if (!file.type.startsWith('image/')) { status.textContent = 'Must be an image.'; return; }
+      status.textContent = 'Uploading...';
+      try {
+        const presigned = await getPresignedUrl(file.name, file.type);
+        await fetch(presigned.uploadUrl, { method: 'PUT', headers: { 'Content-Type': file.type }, body: file });
+        document.getElementById('heroUrlHidden').value = presigned.publicUrl;
+        document.getElementById('heroForm').submit();
+      } catch (err) {
+        status.textContent = 'Upload failed: ' + err.message;
+      }
+    }
+    </script>
+
+    <a href="/admin" class="btn btn-outline">Back to Dashboard</a>
+  </main>
+</div>
+
+<%- include('../layout_foot') %>

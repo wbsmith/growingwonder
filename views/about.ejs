@@ -1,0 +1,31 @@
+<%- include('layout_head', { title: 'About' }) %>
+
+<%- include('_nav') %>
+
+<% const overlay = page.heroOverlay || 'rgba(44,74,46,0.8)'; %>
+<section class="program-hero" <% if (page.heroImage) { %>style="background-image: linear-gradient(<%= overlay %>, <%= overlay %>), url('<%= page.heroImage %>');"<% } %>>
+  <div class="program-hero-content">
+    <h1><%= page.heroTitle || 'About' %></h1>
+    <% if (page.heroSubtitle) { %><p><%= page.heroSubtitle %></p><% } %>
+  </div>
+</section>
+
+<div class="program-page">
+  <% if (page.body) { %>
+    <div class="program-description">
+      <%- page.body %>
+    </div>
+  <% } else { %>
+    <div style="text-align: center; color: var(--text-light); padding: 40px;">
+      <p>Content coming soon.</p>
+    </div>
+  <% } %>
+
+  <div class="program-cta">
+    <a href="/register" class="btn btn-green">Register Now</a>
+    <a href="/#programs" class="btn btn-outline" style="margin-left: 12px;">Our Programs</a>
+  </div>
+</div>
+
+<%- include('_footer') %>
+<%- include('layout_foot') %>
