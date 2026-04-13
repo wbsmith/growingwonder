@@ -40,23 +40,36 @@
     </form>
     <script src="https://cdn.jsdelivr.net/npm/quill@2/dist/quill.js"></script>
     <script>
+    // Pre-process: if existing content is plain text (no HTML tags), convert newlines to paragraphs
+    let existingContent = <%- JSON.stringify(program.longDescription || '') %>;
+    if (existingContent && !existingContent.includes('<')) {
+      existingContent = existingContent.split(/\n+/).filter(Boolean).map(p => '<p>' + p + '</p>').join('');
+    }
+
+    // Set content in the editor div BEFORE Quill initializes so it parses it properly
+    document.getElementById('editor').innerHTML = existingContent;
+
     const quill = new Quill('#editor', {
       theme: 'snow',
       modules: {
-        toolbar: [
-          [{ 'header': [2, 3, false] }],
-          ['bold', 'italic', 'underline'],
-          [{ 'color': [] }, { 'background': [] }],
-          [{ 'list': 'ordered' }, { 'list': 'bullet' }],
-          ['link'],
-          ['clean']
-        ]
+        toolbar: {
+          container: [
+            [{ 'header': [2, 3, false] }],
+            ['bold', 'italic', 'underline'],
+            [{ 'color': [] }, { 'background': [] }],
+            [{ 'list': 'ordered' }, { 'list': 'bullet' }],
+            ['link'],
+            ['clean']
+          ]
+        }
       },
       placeholder: 'Detailed program description...'
     });
-    quill.root.innerHTML = <%- JSON.stringify(program.longDescription || '') %>;
+
     document.getElementById('descForm').addEventListener('submit', function() {
-      document.getElementById('descHidden').value = quill.root.innerHTML;
+      // Don't save the empty editor placeholder
+      const html = quill.root.innerHTML;
+      document.getElementById('descHidden').value = (html === '<p><br></p>') ? '' : html;
     });
     </script>
 
