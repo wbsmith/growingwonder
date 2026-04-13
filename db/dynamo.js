@@ -54,18 +54,22 @@ async function createProgram(name, description) {
   return id;
 }
 
-async function updateProgramContent(id, longDescription, heroImage) {
-  const params = {
+async function updateProgramDescription(id, longDescription) {
+  await client.send(new UpdateCommand({
     TableName: T.programs,
     Key: { id },
     UpdateExpression: 'SET longDescription = :ld',
     ExpressionAttributeValues: { ':ld': longDescription || null },
-  };
-  if (heroImage !== undefined) {
-    params.UpdateExpression += ', heroImage = :hi';
-    params.ExpressionAttributeValues[':hi'] = heroImage || null;
-  }
-  await client.send(new UpdateCommand(params));
+  }));
+}
+
+async function updateProgramHero(id, heroImage) {
+  await client.send(new UpdateCommand({
+    TableName: T.programs,
+    Key: { id },
+    UpdateExpression: 'SET heroImage = :hi',
+    ExpressionAttributeValues: { ':hi': heroImage || null },
+  }));
 }
 
 async function addProgramMedia(id, mediaItem) {
@@ -408,7 +412,7 @@ async function countNewInquiries() {
 
 module.exports = {
   getAllPrograms, getProgram, createProgram, deleteProgram,
-  updateProgramContent, addProgramMedia, removeProgramMedia,
+  updateProgramDescription, updateProgramHero, addProgramMedia, removeProgramMedia,
   getDatesByProgram, addDates, removeDate,
   createRegistration, getEnrollments, getRegistrationsByProgram,
   countRegistrationsByProgram, updatePayment,

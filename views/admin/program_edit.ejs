@@ -32,14 +32,33 @@
 
     <!-- Long Description -->
     <h2 style="margin-bottom: 12px;">Description</h2>
-    <form method="POST" action="/admin/programs/<%= program.id %>/content" style="margin-bottom: 32px;">
-      <div class="form-group">
-        <textarea name="long_description" rows="8"
-          style="width: 100%; padding: 12px; border: 1px solid #ccc; border-radius: var(--radius); font-family: inherit; font-size: 0.95rem;"
-          placeholder="Detailed program description..."><%= program.longDescription || '' %></textarea>
-      </div>
-      <button type="submit" class="btn btn-green btn-sm">Save Description</button>
+    <link href="https://cdn.jsdelivr.net/npm/quill@2/dist/quill.snow.css" rel="stylesheet">
+    <form method="POST" action="/admin/programs/<%= program.id %>/content" id="descForm" style="margin-bottom: 32px;">
+      <div id="editor" style="min-height: 200px; background: var(--white); border-radius: 0 0 var(--radius) var(--radius);"></div>
+      <input type="hidden" name="long_description" id="descHidden">
+      <button type="submit" class="btn btn-green btn-sm" style="margin-top: 12px;">Save Description</button>
     </form>
+    <script src="https://cdn.jsdelivr.net/npm/quill@2/dist/quill.js"></script>
+    <script>
+    const quill = new Quill('#editor', {
+      theme: 'snow',
+      modules: {
+        toolbar: [
+          [{ 'header': [2, 3, false] }],
+          ['bold', 'italic', 'underline'],
+          [{ 'color': [] }, { 'background': [] }],
+          [{ 'list': 'ordered' }, { 'list': 'bullet' }],
+          ['link'],
+          ['clean']
+        ]
+      },
+      placeholder: 'Detailed program description...'
+    });
+    quill.root.innerHTML = <%- JSON.stringify(program.longDescription || '') %>;
+    document.getElementById('descForm').addEventListener('submit', function() {
+      document.getElementById('descHidden').value = quill.root.innerHTML;
+    });
+    </script>
 
     <!-- Media Gallery -->
     <h2 style="margin-bottom: 12px;">Media</h2>

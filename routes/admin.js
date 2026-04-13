@@ -337,7 +337,7 @@ router.get('/programs/:id/edit', requireAuth, asyncHandler(async (req, res) => {
 
 router.post('/programs/:id/content', requireAuth, asyncHandler(async (req, res) => {
   const { long_description } = req.body;
-  await db.updateProgramContent(req.params.id, long_description);
+  await db.updateProgramDescription(req.params.id, long_description);
   req.session.flash = { type: 'success', msg: 'Content updated.' };
   res.redirect(303, '/admin/programs/' + req.params.id + '/edit');
 }));
@@ -367,7 +367,7 @@ router.post('/programs/:id/media/remove', requireAuth, asyncHandler(async (req, 
 
 router.post('/programs/:id/hero', requireAuth, asyncHandler(async (req, res) => {
   const { url } = req.body;
-  await db.updateProgramContent(req.params.id, undefined, url || null);
+  await db.updateProgramHero(req.params.id, url || null);
   req.session.flash = { type: 'success', msg: 'Hero image updated.' };
   res.redirect(303, '/admin/programs/' + req.params.id + '/edit');
 }));
