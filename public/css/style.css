@@ -369,16 +369,17 @@ a:hover { color: var(--green-dark); }
   color: var(--green-dark);
   font-weight: 700;
   border: 1px solid var(--green-mid);
-  transition: background 0.15s;
+  -webkit-tap-highlight-color: transparent;
 }
-@media (hover: hover) {
-  .calendar-grid .day-cell.available:hover {
+@media (hover: hover) and (pointer: fine) {
+  .calendar-grid .day-cell.available:not(.selected):hover {
     background: #e8f5e9;
   }
 }
-.calendar-grid .day-cell.available.selected {
-  background: var(--green-dark);
-  color: var(--white);
+.calendar-grid .day-cell.available.selected,
+.calendar-grid .day-cell.available.selected:hover {
+  background: var(--green-dark) !important;
+  color: var(--white) !important;
   font-weight: 700;
   border: 1px solid var(--green-dark);
 }
