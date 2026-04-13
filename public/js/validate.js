@@ -131,6 +131,12 @@
       errors.push('Please add at least one child with name and date of birth.');
     }
 
+    // Terms checkbox
+    const terms = document.getElementById('termsCheckbox');
+    if (terms && !terms.checked) {
+      errors.push('Please agree to the terms and conditions.');
+    }
+
     if (errors.length > 0) {
       e.preventDefault();
       formError.innerHTML = errors.join('<br>');

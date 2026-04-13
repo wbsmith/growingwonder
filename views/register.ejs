@@ -85,12 +85,56 @@
       <textarea name="notes" rows="3"></textarea>
     </div>
 
+    <div class="terms-section" style="margin-top: 24px; margin-bottom: 20px; padding: 20px; background: var(--sand); border-radius: var(--radius); font-size: 0.85rem; color: var(--text);">
+      <div class="form-group" style="margin-bottom: 16px;">
+        <label style="display: flex; align-items: flex-start; gap: 10px; cursor: pointer; font-weight: 400; font-size: 0.9rem;">
+          <input type="checkbox" id="termsCheckbox" required style="margin-top: 3px; flex-shrink: 0;">
+          <span>By checking this box, you agree to our terms and conditions, including cancellation policy and liability waiver, as defined briefly below.</span>
+        </label>
+      </div>
+      <details style="margin-bottom: 12px;">
+        <summary style="cursor: pointer; font-weight: 700; color: var(--green-dark); margin-bottom: 8px;">Terms and Conditions</summary>
+        <p style="margin-bottom: 8px;">Camp is both adventurous and fun — and part of that joy comes from learning how to navigate the natural world with awareness and confidence. In the woods, small challenges can arise, and together we practice resilience, problem-solving, and safe risk-taking as children learn their boundaries.</p>
+        <p>By registering for <%= site.name %>, you acknowledge and agree to the terms outlined in our liability waiver, available <a href="#" onclick="openWaiverModal(); return false;" style="font-weight: 700;">here</a>.</p>
+      </details>
+      <details>
+        <summary style="cursor: pointer; font-weight: 700; color: var(--green-dark); margin-bottom: 8px;">Cancellation Policy</summary>
+        <p>Cancellations made more than two weeks prior to the start of camp will receive a refund (less a 10% processing fee). Unfortunately, no refunds can be given for cancellations made within 14 days of the camp, including absences due to illness, last-minute conflicts, or changes in schedule. This helps us plan staffing, materials, and group size with care and consistency. Thank you for understanding.</p>
+      </details>
+    </div>
+
     <button type="submit" class="btn btn-green" style="width: 100%; font-size: 1.1rem;">
       Complete Registration
     </button>
     </div><!-- .form-fields-narrow -->
   </form>
 </div>
+
+<!-- Waiver Modal -->
+<div id="waiverModal" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.4); z-index: 100; align-items: center; justify-content: center;">
+  <div style="background: var(--white); border-radius: 12px; padding: 32px; max-width: 640px; width: 90%; max-height: 85vh; overflow-y: auto; box-shadow: 0 8px 30px rgba(0,0,0,0.2);">
+    <h2 style="color: var(--green-dark); margin-bottom: 16px;">Liability Waiver</h2>
+    <div id="waiverContent" class="program-description" style="font-size: 0.9rem; margin-bottom: 20px;">Loading...</div>
+    <button type="button" class="btn btn-outline" onclick="document.getElementById('waiverModal').style.display='none';">Close</button>
+  </div>
+</div>
+<script>
+let waiverLoaded = false;
+function openWaiverModal() {
+  document.getElementById('waiverModal').style.display = 'flex';
+  if (!waiverLoaded) {
+    fetch('/waiver?format=json').then(r => r.json()).then(data => {
+      document.getElementById('waiverContent').innerHTML = data.body || '<p>Waiver content not yet available.</p>';
+      waiverLoaded = true;
+    }).catch(() => {
+      document.getElementById('waiverContent').innerHTML = '<p>Unable to load waiver. Please try again.</p>';
+    });
+  }
+}
+document.getElementById('waiverModal').addEventListener('click', function(e) {
+  if (e.target === this) this.style.display = 'none';
+});
+</script>
 
 <script src="/js/calendar.js"></script>
 <script src="/js/children.js"></script>

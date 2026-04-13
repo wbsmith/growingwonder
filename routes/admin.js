@@ -82,6 +82,7 @@ router.get('/pages', requireAuth, (req, res) => {
     pages: [
       { slug: 'home', title: 'Home Page' },
       { slug: 'about', title: 'About Page' },
+      { slug: 'waiver', title: 'Liability Waiver' },
     ]
   });
 });

@@ -11,6 +11,14 @@ router.get('/', asyncHandler(async (req, res) => {
   res.render('home', { programs, page });
 }));
 
+router.get('/waiver', asyncHandler(async (req, res) => {
+  const page = await db.getPage('waiver') || {};
+  if (req.query.format === 'json') {
+    return res.json({ body: page.body || null });
+  }
+  res.render('waiver', { page });
+}));
+
 router.get('/about', asyncHandler(async (req, res) => {
   const page = await db.getPage('about') || {};
   res.render('about', { page });
