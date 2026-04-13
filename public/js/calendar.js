@@ -210,7 +210,16 @@
               cell.style.background = '#ffffff';
               cell.title = `${c.avail.available} of ${c.avail.capacity} spots`;
               cell.dataset.dateId = c.avail.date;
+              let touched = false;
+              cell.addEventListener('touchend', (e) => {
+                e.preventDefault();
+                touched = true;
+                toggleDate(c.avail.date);
+                refreshAllCells();
+                updateSummary();
+              }, { passive: false });
               cell.addEventListener('click', () => {
+                if (touched) { touched = false; return; }
                 toggleDate(c.avail.date);
                 refreshAllCells();
                 updateSummary();
