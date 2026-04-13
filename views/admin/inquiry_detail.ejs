@@ -2,7 +2,7 @@
 <link rel="stylesheet" href="/css/admin.css">
 
 <div class="admin-layout">
-  <%- include('_sidebar', { active: 'inquiries' }) %>
+  <%- include('_sidebar', { active: 'messages' }) %>
   <main class="admin-main">
     <h1>Inquiry Detail</h1>
 
@@ -29,7 +29,7 @@
 
     <% if (inquiry.status === 'new') { %>
       <h3 style="margin-bottom: 12px; color: var(--green-dark);">Reply</h3>
-      <form method="POST" action="/admin/inquiries/<%= inquiry.id %>/reply">
+      <form method="POST" action="/admin/messages/inquiries/<%= inquiry.id %>/reply">
         <div class="form-group">
           <textarea name="reply" rows="6" required
             style="width: 100%; padding: 12px; border: 1px solid #ccc; border-radius: var(--radius); font-family: inherit; font-size: 0.95rem;"
@@ -40,11 +40,11 @@
             onclick="return confirm('<%= inquiry.email ? 'Send reply to ' + inquiry.email + '?' : 'Save reply (no email on file — reply will be saved but not sent).' %>')">
             <%= inquiry.email ? 'Send Reply' : 'Save Reply' %>
           </button>
-          <a href="/admin/inquiries" class="btn btn-outline">Back</a>
+          <a href="/admin/messages?tab=inquiries" class="btn btn-outline">Back</a>
         </div>
       </form>
     <% } else { %>
-      <a href="/admin/inquiries" class="btn btn-outline">Back to Inquiries</a>
+      <a href="/admin/messages?tab=inquiries" class="btn btn-outline">Back to Inquiries</a>
     <% } %>
   </main>
 </div>

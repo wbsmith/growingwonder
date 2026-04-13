@@ -1,0 +1,46 @@
+<%- include('../layout_head', { title: 'Programs' }) %>
+<link rel="stylesheet" href="/css/admin.css">
+
+<div class="admin-layout">
+  <%- include('_sidebar', { active: 'programs' }) %>
+  <main class="admin-main">
+    <h1>Programs</h1>
+
+    <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 20px; margin-bottom: 32px;">
+      <% programs.forEach(p => { %>
+        <div class="stat-card">
+          <h3 style="color: var(--green-dark); margin-bottom: 8px;"><%= p.name %></h3>
+          <p style="font-size: 0.85rem; color: var(--text-light); margin-bottom: 12px;"><%= p.description || 'No description' %></p>
+          <div style="font-size: 0.85rem; margin-bottom: 12px;">
+            <strong><%= p.dateCount %></strong> dates configured &middot;
+            <strong><%= p.regCount %></strong> registrations
+          </div>
+          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+            <a href="/admin/programs/<%= p.id %>/edit" class="btn btn-outline btn-sm">Edit Content</a>
+            <a href="/admin/programs/<%= p.id %>/dates" class="btn btn-outline btn-sm">Manage Dates</a>
+            <% if (p.regCount === 0) { %>
+              <form method="POST" action="/admin/programs/remove" style="display:inline;">
+                <input type="hidden" name="program_id" value="<%= p.id %>">
+                <button type="submit" class="btn btn-danger btn-sm"
+                  onclick="return confirm('Remove \'<%= p.name %>\'? This also removes its dates.')">Remove</button>
+              </form>
+            <% } %>
+          </div>
+        </div>
+      <% }) %>
+    </div>
+
+    <h2 style="margin-bottom: 16px;">Add Program</h2>
+    <form method="POST" action="/admin/programs/add" class="inline-form">
+      <div class="form-group">
+        <input type="text" name="name" placeholder="Program name" required>
+      </div>
+      <div class="form-group">
+        <input type="text" name="description" placeholder="Description">
+      </div>
+      <button type="submit" class="btn btn-green btn-sm">Add</button>
+    </form>
+  </main>
+</div>
+
+<%- include('../layout_foot') %>

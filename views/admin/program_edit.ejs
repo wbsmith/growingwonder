@@ -2,7 +2,7 @@
 <link rel="stylesheet" href="/css/admin.css">
 
 <div class="admin-layout">
-  <%- include('_sidebar', { active: 'dashboard' }) %>
+  <%- include('_sidebar', { active: 'programs' }) %>
   <main class="admin-main">
     <h1>Edit: <%= program.name %></h1>
     <p style="margin-bottom: 24px;">
@@ -147,7 +147,7 @@
       <div id="mediaStatus" style="font-size: 0.85rem; color: var(--text-light); margin-top: 8px;"></div>
     </div>
 
-    <a href="/admin" class="btn btn-outline">Back to Dashboard</a>
+    <a href="/admin/programs" class="btn btn-outline">Back to Programs</a>
   </main>
 </div>
 

@@ -1,0 +1,188 @@
+<%- include('../layout_head', { title: 'Messages' }) %>
+<link rel="stylesheet" href="/css/admin.css">
+
+<div class="admin-layout">
+  <%- include('_sidebar', { active: 'messages' }) %>
+  <main class="admin-main">
+    <h1>Messages</h1>
+
+    <%- include('_tabs', { tabs: [
+      { label: 'Confirmations', href: '/admin/messages?tab=confirmations', active: tab === 'confirmations', badge: pendingEmails > 0 ? pendingEmails : null },
+      { label: 'Bulk Send', href: '/admin/messages?tab=bulk', active: tab === 'bulk' },
+      { label: 'Inquiries', href: '/admin/messages?tab=inquiries', active: tab === 'inquiries', badge: newInquiries > 0 ? newInquiries : null },
+    ]}) %>
+
+    <% if (tab === 'confirmations') { %>
+      <!-- CONFIRMATIONS TAB -->
+      <% if (emails.length === 0) { %>
+        <p style="color: var(--text-light);">No emails in queue.</p>
+      <% } else { %>
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Status</th>
+              <th>To</th>
+              <th>Child</th>
+              <th>Program</th>
+              <th>Subject</th>
+              <th>Created</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            <% emails.forEach(e => { %>
+              <tr>
+                <td><span class="badge badge-<%= e.status %>"><%= e.status %></span></td>
+                <td><%= e.toAddr %></td>
+                <td><%= e.childName %></td>
+                <td><%= e.programName %></td>
+                <td><%= e.subject %></td>
+                <td style="font-size: 0.8rem;"><%= e.createdAt %></td>
+                <td>
+                  <% if (e.status === 'draft') { %>
+                    <a href="/admin/messages/emails/<%= e.id %>/edit" class="btn btn-outline btn-sm">Edit & Send</a>
+                  <% } else if (e.status === 'sent') { %>
+                    <span style="color: var(--text-light); font-size: 0.8rem;">Sent <%= e.sentAt %></span>
+                  <% } else { %>
+                    <a href="/admin/messages/emails/<%= e.id %>/edit" class="btn btn-outline btn-sm">Retry</a>
+                  <% } %>
+                </td>
+              </tr>
+            <% }) %>
+          </tbody>
+        </table>
+      <% } %>
+
+    <% } else if (tab === 'bulk') { %>
+      <!-- BULK SEND TAB -->
+      <div style="background: var(--white); border-radius: var(--radius); padding: 24px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); margin-bottom: 24px;">
+        <h3 style="margin-bottom: 16px; color: var(--green-dark); font-size: 1rem;">Select Recipients</h3>
+        <div style="display: flex; gap: 16px; flex-wrap: wrap; align-items: flex-end;">
+          <div class="form-group" style="margin-bottom: 0;">
+            <label>Scope</label>
+            <select id="scope" onchange="updateScopeUI()">
+              <option value="all">All enrolled parents</option>
+              <option value="program">All in a program</option>
+              <option value="week">Enrolled in a week</option>
+              <option value="day">Enrolled on a day</option>
+            </select>
+          </div>
+          <div class="form-group" style="margin-bottom: 0; display: none;" id="programGroup">
+            <label>Program</label>
+            <select id="bulkProgramSelect" onchange="updateDateOptions()">
+              <option value="">Choose...</option>
+              <% programs.forEach(p => { %>
+                <option value="<%= p.id %>"><%= p.name %></option>
+              <% }) %>
+            </select>
+          </div>
+          <div class="form-group" style="margin-bottom: 0; display: none;" id="weekGroup">
+            <label>Week</label>
+            <select id="weekSelect"></select>
+          </div>
+          <div class="form-group" style="margin-bottom: 0; display: none;" id="dayGroup">
+            <label>Date</label>
+            <select id="daySelect"></select>
+          </div>
+          <button type="button" class="btn btn-outline btn-sm" onclick="fetchRecipients()">Load Recipients</button>
+        </div>
+        <div id="recipientInfo" style="margin-top: 16px; display: none;">
+          <strong id="recipientCount">0</strong> recipient(s):
+          <div id="recipientList" style="font-size: 0.8rem; color: var(--text-light); margin-top: 4px; max-height: 100px; overflow-y: auto;"></div>
+        </div>
+      </div>
+      <form method="POST" action="/admin/messages/bulk/send">
+        <input type="hidden" name="recipients" id="recipientHidden">
+        <div class="form-group">
+          <label>Subject</label>
+          <input type="text" name="subject" required style="padding: 10px 14px; border: 1px solid #ccc; border-radius: var(--radius); width: 100%;">
+        </div>
+        <div class="form-group">
+          <label>Message</label>
+          <textarea name="body" rows="10" required style="width: 100%; padding: 12px; border: 1px solid #ccc; border-radius: var(--radius); font-family: inherit; font-size: 0.95rem;" placeholder="Type your message..."></textarea>
+        </div>
+        <button type="submit" class="btn btn-green" id="sendBtn" disabled
+          onclick="return confirm('Send this email to ' + document.getElementById('recipientCount').textContent + ' recipient(s)?')">
+          Send Email
+        </button>
+      </form>
+      <script>
+      const programWeeks = <%- JSON.stringify(programWeeks) %>;
+      function updateScopeUI() {
+        const scope = document.getElementById('scope').value;
+        document.getElementById('programGroup').style.display = (scope === 'all') ? 'none' : '';
+        document.getElementById('weekGroup').style.display = (scope === 'week') ? '' : 'none';
+        document.getElementById('dayGroup').style.display = (scope === 'day') ? '' : 'none';
+        document.getElementById('recipientInfo').style.display = 'none';
+        document.getElementById('sendBtn').disabled = true;
+      }
+      function updateDateOptions() {
+        const pid = document.getElementById('bulkProgramSelect').value;
+        if (!pid || !programWeeks[pid]) return;
+        const data = programWeeks[pid];
+        const weekSel = document.getElementById('weekSelect');
+        weekSel.innerHTML = '';
+        data.weeks.forEach(w => { const o = document.createElement('option'); o.value = w.monday; o.textContent = w.monday + ' to ' + w.friday; weekSel.appendChild(o); });
+        const daySel = document.getElementById('daySelect');
+        daySel.innerHTML = '';
+        data.dates.forEach(d => { const o = document.createElement('option'); o.value = d; const dt = new Date(d+'T00:00:00'); o.textContent = dt.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'})+' ('+d+')'; daySel.appendChild(o); });
+      }
+      async function fetchRecipients() {
+        const scope = document.getElementById('scope').value;
+        const programId = document.getElementById('bulkProgramSelect').value;
+        const body = { scope };
+        if (scope !== 'all') body.programId = programId;
+        if (scope === 'week') body.weekStart = document.getElementById('weekSelect').value;
+        if (scope === 'day') body.date = document.getElementById('daySelect').value;
+        const res = await fetch('/admin/messages/bulk/recipients', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body) });
+        const data = await res.json();
+        document.getElementById('recipientCount').textContent = data.count;
+        document.getElementById('recipientList').textContent = data.emails.join(', ');
+        document.getElementById('recipientHidden').value = data.emails.join(',');
+        document.getElementById('recipientInfo').style.display = 'block';
+        document.getElementById('sendBtn').disabled = data.count === 0;
+      }
+      </script>
+
+    <% } else if (tab === 'inquiries') { %>
+      <!-- INQUIRIES TAB -->
+      <% if (inquiries.length === 0) { %>
+        <p style="color: var(--text-light);">No inquiries yet.</p>
+      <% } else { %>
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Status</th>
+              <th>Subject</th>
+              <th>From</th>
+              <th>Contact</th>
+              <th>Message</th>
+              <th>Received</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            <% inquiries.forEach(i => { %>
+              <tr>
+                <td><span class="badge badge-<%= i.status === 'new' ? 'draft' : 'sent' %>"><%= i.status %></span></td>
+                <td><%= i.subject %></td>
+                <td><%= i.name || '—' %></td>
+                <td style="font-size: 0.8rem;">
+                  <% if (i.email) { %><div><%= i.email %></div><% } %>
+                  <% if (i.phone) { %><div><%= i.phone %></div><% } %>
+                </td>
+                <td style="font-size: 0.85rem; max-width: 250px;"><%= i.message %></td>
+                <td style="font-size: 0.8rem;"><%= i.createdAt %></td>
+                <td>
+                  <a href="/admin/messages/inquiries/<%= i.id %>" class="btn btn-outline btn-sm"><%= i.status === 'new' ? 'Reply' : 'View' %></a>
+                </td>
+              </tr>
+            <% }) %>
+          </tbody>
+        </table>
+      <% } %>
+    <% } %>
+  </main>
+</div>
+
+<%- include('../layout_foot') %>

@@ -111,6 +111,38 @@
 .badge-sent { background: #d4edda; color: #155724; }
 .badge-failed { background: #f8d7da; color: #721c24; }
 
+/* Tabs */
+.admin-tabs {
+  display: flex;
+  gap: 0;
+  border-bottom: 2px solid #ddd;
+  margin-bottom: 24px;
+}
+.admin-tab {
+  padding: 10px 20px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text-light);
+  border-bottom: 2px solid transparent;
+  margin-bottom: -2px;
+  transition: color 0.15s;
+}
+.admin-tab:hover { color: var(--text); }
+.admin-tab.active {
+  color: var(--green-dark);
+  border-bottom-color: var(--green-dark);
+}
+.tab-badge {
+  display: inline-block;
+  background: var(--red);
+  color: white;
+  font-size: 0.65rem;
+  padding: 1px 6px;
+  border-radius: 10px;
+  margin-left: 4px;
+  vertical-align: middle;
+}
+
 /* Forms */
 .admin-form {
   max-width: 600px;

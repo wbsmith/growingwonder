@@ -6,8 +6,16 @@
   <main class="admin-main">
     <h1>Enrollments</h1>
 
+    <%- include('_tabs', { tabs: [
+      { label: 'Registrations', href: '/admin/enrollments?tab=registrations' + (selectedProgramId ? '&program=' + selectedProgramId : ''), active: tab === 'registrations' },
+      { label: 'Payments', href: '/admin/enrollments?tab=payments' + (selectedProgramId ? '&program=' + selectedProgramId : ''), active: tab === 'payments' },
+      { label: 'Rosters', href: '/admin/enrollments?tab=rosters' + (selectedProgramId ? '&program=' + selectedProgramId : ''), active: tab === 'rosters' },
+    ]}) %>
+
+    <!-- Program filter (shared across tabs) -->
     <form method="GET" action="/admin/enrollments" class="inline-form" style="margin-bottom: 24px;">
-      <div class="form-group">
+      <input type="hidden" name="tab" value="<%= tab %>">
+      <div class="form-group" style="margin-bottom: 0;">
         <select name="program" onchange="this.form.submit()">
           <option value="">All programs</option>
           <% programs.forEach(p => { %>
@@ -17,9 +25,168 @@
       </div>
     </form>
 
-    <% if (selectedProgramId && weeks && weeks.length > 0) { %>
-      <div style="margin-bottom: 32px; padding: 20px; background: var(--white); border-radius: var(--radius); box-shadow: 0 2px 8px rgba(0,0,0,0.06);">
-        <h3 style="margin-bottom: 12px; color: var(--green-dark); font-size: 1.1rem;">Print Weekly Roster</h3>
+    <% if (tab === 'registrations') { %>
+      <!-- REGISTRATIONS TAB -->
+      <% if (enrollments.length === 0) { %>
+        <p style="color: var(--text-light);">No registrations yet.</p>
+      <% } else { %>
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Program</th>
+              <th>Children</th>
+              <th>Parent</th>
+              <th>Email</th>
+              <th>Phone</th>
+              <th>Dates</th>
+              <th>Registered</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% enrollments.forEach(e => { %>
+              <tr>
+                <td><%= e.programName %></td>
+                <td>
+                  <% (e.children || []).forEach(c => { %>
+                    <div style="font-size: 0.85rem;"><strong><%= c.name %></strong> (<%= c.dob %>)</div>
+                  <% }) %>
+                </td>
+                <td><%= e.parentName %></td>
+                <td><%= e.parentEmail %></td>
+                <td><%= e.parentPhone %></td>
+                <td>
+                  <% (e.selectedDates || []).sort().forEach(d => { %>
+                    <div style="font-size: 0.8rem;"><%= d %></div>
+                  <% }) %>
+                </td>
+                <td style="font-size: 0.8rem;"><%= e.createdAt %></td>
+              </tr>
+            <% }) %>
+          </tbody>
+        </table>
+      <% } %>
+
+    <% } else if (tab === 'payments') { %>
+      <!-- PAYMENTS TAB -->
+      <% if (enrollments.length === 0) { %>
+        <p style="color: var(--text-light);">No registrations.</p>
+      <% } else { %>
+        <div style="text-align: right; margin-bottom: 12px;">
+          <a href="/admin/enrollments/csv<%= selectedProgramId ? '?program=' + selectedProgramId : '' %>"
+             class="btn btn-outline btn-sm">Export CSV</a>
+        </div>
+        <table class="data-table" id="statusTable">
+          <thead>
+            <tr>
+              <th>Parent</th>
+              <th>Contact</th>
+              <th>Children</th>
+              <th>Program</th>
+              <th>Dates</th>
+              <th>Confirmed</th>
+              <th style="cursor: pointer;" onclick="sortByPayment()">Payment <span id="sortArrow">&#9650;</span></th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            <% enrollments.forEach(r => { %>
+              <%
+                const unpaid = (r.paymentAmount == null || r.paymentAmount === 0);
+                const rowClass = unpaid ? 'unpaid-row' : '';
+              %>
+              <tr class="<%= rowClass %>" data-amount="<%= r.paymentAmount != null ? r.paymentAmount : -1 %>">
+                <td><%= r.parentName %></td>
+                <td style="font-size: 0.8rem;">
+                  <div><%= r.parentEmail %></div>
+                  <div><%= r.parentPhone %></div>
+                </td>
+                <td>
+                  <% (r.children || []).forEach(c => { %>
+                    <div style="font-size: 0.85rem;"><%= c.name %> (<%= c.dob %>)</div>
+                  <% }) %>
+                </td>
+                <td><%= r.programName %></td>
+                <td style="font-size: 0.75rem;">
+                  <% (r.selectedDates || []).sort().forEach(d => { %>
+                    <div><%= d %></div>
+                  <% }) %>
+                </td>
+                <td style="font-size: 0.8rem;"><%= r.confirmationDate || '—' %></td>
+                <td style="font-size: 0.8rem;">
+                  <% if (r.paymentAmount != null || r.paymentDate) { %>
+                    <% if (r.paymentAmount != null) { %><div><strong>$<%= r.paymentAmount.toFixed(2) %></strong></div><% } %>
+                    <% if (r.paymentDate) { %><div><%= r.paymentDate %></div><% } %>
+                    <% if (r.paymentNotes) { %><div style="font-size: 0.75rem; color: var(--text-light);"><%= r.paymentNotes %></div><% } %>
+                  <% } else { %>
+                    <span style="color: var(--text-light);">—</span>
+                  <% } %>
+                </td>
+                <td>
+                  <button type="button" class="btn btn-outline btn-sm" onclick="openEdit('<%= r.id %>')">Edit</button>
+                </td>
+              </tr>
+            <% }) %>
+          </tbody>
+        </table>
+      <% } %>
+
+      <!-- Payment edit modal -->
+      <div id="editModal" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.4); z-index: 100; align-items: center; justify-content: center;">
+        <div style="background: var(--white); border-radius: 12px; padding: 32px; max-width: 440px; width: 90%; box-shadow: 0 8px 30px rgba(0,0,0,0.2);">
+          <h3 style="color: var(--green-dark); margin-bottom: 20px;">Update Payment</h3>
+          <form method="POST" action="/admin/enrollments/payment">
+            <input type="hidden" name="registration_id" id="editRegId">
+            <div class="form-group">
+              <label>Payment Date</label>
+              <input type="date" name="payment_date" id="editPayDate">
+            </div>
+            <div class="form-group">
+              <label>Amount ($)</label>
+              <input type="number" name="payment_amount" id="editPayAmount" step="0.01" min="0">
+            </div>
+            <div class="form-group">
+              <label>Notes</label>
+              <textarea name="payment_notes" id="editPayNotes" rows="2" style="width:100%; padding:8px; border:1px solid #ccc; border-radius:var(--radius); font-family:inherit;"></textarea>
+            </div>
+            <div style="display: flex; gap: 12px;">
+              <button type="submit" class="btn btn-green btn-sm">Save</button>
+              <button type="button" class="btn btn-outline btn-sm" onclick="closeEdit()">Cancel</button>
+            </div>
+          </form>
+        </div>
+      </div>
+
+      <style>.unpaid-row td { background: #fdf0ef; } .unpaid-row:hover td { background: #fbe3e0; }</style>
+      <script>
+      const paymentData = <%- JSON.stringify(enrollments.reduce((acc, r) => { acc[r.id] = { date: r.paymentDate || '', amount: r.paymentAmount != null ? String(r.paymentAmount) : '', notes: r.paymentNotes || '' }; return acc; }, {})) %>;
+      function openEdit(id) {
+        const d = paymentData[id] || {};
+        document.getElementById('editRegId').value = id;
+        document.getElementById('editPayDate').value = d.date;
+        document.getElementById('editPayAmount').value = d.amount;
+        document.getElementById('editPayNotes').value = d.notes;
+        document.getElementById('editModal').style.display = 'flex';
+      }
+      function closeEdit() { document.getElementById('editModal').style.display = 'none'; }
+      document.getElementById('editModal').addEventListener('click', function(e) { if (e.target === this) closeEdit(); });
+      let sortAsc = true;
+      function sortByPayment() {
+        const tbody = document.querySelector('#statusTable tbody');
+        const rows = Array.from(tbody.querySelectorAll('tr'));
+        rows.sort((a, b) => { return sortAsc ? parseFloat(a.dataset.amount) - parseFloat(b.dataset.amount) : parseFloat(b.dataset.amount) - parseFloat(a.dataset.amount); });
+        sortAsc = !sortAsc;
+        document.getElementById('sortArrow').innerHTML = sortAsc ? '&#9650;' : '&#9660;';
+        rows.forEach(r => tbody.appendChild(r));
+      }
+      </script>
+
+    <% } else if (tab === 'rosters') { %>
+      <!-- ROSTERS TAB -->
+      <% if (!selectedProgramId) { %>
+        <p style="color: var(--text-light);">Select a program above to generate rosters.</p>
+      <% } else if (weeks.length === 0) { %>
+        <p style="color: var(--text-light);">No dates configured for this program.</p>
+      <% } else { %>
         <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap;">
           <div class="form-group" style="margin-bottom: 0;">
             <label>Week</label>
@@ -29,51 +196,12 @@
               <% }) %>
             </select>
           </div>
-          <a id="rosterLink" href="#" class="btn btn-outline btn-sm" target="_blank"
+          <a id="rosterLink" href="#" class="btn btn-green btn-sm" target="_blank"
              onclick="this.href='/admin/roster?program=<%= selectedProgramId %>&week='+document.getElementById('rosterWeek').value">
             Print Roster
           </a>
         </div>
-      </div>
-    <% } %>
-
-    <% if (enrollments.length === 0) { %>
-      <p style="color: var(--text-light);">No registrations yet.</p>
-    <% } else { %>
-      <table class="data-table">
-        <thead>
-          <tr>
-            <th>Program</th>
-            <th>Children</th>
-            <th>Parent</th>
-            <th>Email</th>
-            <th>Phone</th>
-            <th>Dates</th>
-            <th>Registered</th>
-          </tr>
-        </thead>
-        <tbody>
-          <% enrollments.forEach(e => { %>
-            <tr>
-              <td><%= e.programName %></td>
-              <td>
-                <% (e.children || []).forEach(c => { %>
-                  <div style="font-size: 0.85rem;"><strong><%= c.name %></strong> (DOB: <%= c.dob %>)</div>
-                <% }) %>
-              </td>
-              <td><%= e.parentName %></td>
-              <td><%= e.parentEmail %></td>
-              <td><%= e.parentPhone %></td>
-              <td>
-                <% (e.selectedDates || []).sort().forEach(d => { %>
-                  <div style="font-size: 0.8rem;"><%= d %></div>
-                <% }) %>
-              </td>
-              <td style="font-size: 0.8rem;"><%= e.createdAt %></td>
-            </tr>
-          <% }) %>
-        </tbody>
-      </table>
+      <% } %>
     <% } %>
   </main>
 </div>

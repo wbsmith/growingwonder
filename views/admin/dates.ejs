@@ -1,87 +1,73 @@
-<%- include('../layout_head', { title: 'Manage Dates' }) %>
+<%- include('../layout_head', { title: 'Manage Dates — ' + program.name }) %>
 <link rel="stylesheet" href="/css/admin.css">
 
 <div class="admin-layout">
-  <%- include('_sidebar', { active: 'dates' }) %>
+  <%- include('_sidebar', { active: 'programs' }) %>
   <main class="admin-main">
-    <h1>Manage Available Dates</h1>
+    <h1>Manage Dates: <%= program.name %></h1>
+    <p style="margin-bottom: 24px;"><a href="/admin/programs">&larr; Back to Programs</a></p>
 
-    <form method="GET" action="/admin/dates" class="inline-form" style="margin-bottom: 32px;">
-      <div class="form-group">
-        <label>Program</label>
-        <select name="program" onchange="this.form.submit()">
-          <% programs.forEach(p => { %>
-            <option value="<%= p.id %>" <%= selectedProgramId === p.id ? 'selected' : '' %>><%= p.name %></option>
-          <% }) %>
-        </select>
+    <h2 style="margin-bottom: 16px;">Add Dates</h2>
+    <form method="POST" action="/admin/dates/add">
+      <input type="hidden" name="program_id" value="<%= selectedProgramId %>">
+      <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; margin-bottom: 24px;">
+        <div class="form-group">
+          <label>Start Date</label>
+          <input type="date" id="startDate" required>
+        </div>
+        <div class="form-group">
+          <label>End Date</label>
+          <input type="date" id="endDate" required>
+        </div>
+        <div class="form-group">
+          <label><input type="checkbox" id="weekdaysOnly" checked> Weekdays only</label>
+        </div>
+        <div class="form-group">
+          <label>Max Capacity</label>
+          <input type="number" name="max_capacity" value="12" min="1" style="width: 80px;">
+        </div>
+        <input type="hidden" name="dates" id="dateRange">
+        <button type="submit" class="btn btn-green btn-sm" onclick="return buildDateRange()">Add Dates</button>
       </div>
     </form>
 
-    <% if (selectedProgramId) { %>
-      <h2 style="margin-bottom: 16px;">Add Dates</h2>
-      <form method="POST" action="/admin/dates/add">
-        <input type="hidden" name="program_id" value="<%= selectedProgramId %>">
-        <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; margin-bottom: 24px;">
-          <div class="form-group">
-            <label>Start Date</label>
-            <input type="date" id="startDate" required>
-          </div>
-          <div class="form-group">
-            <label>End Date</label>
-            <input type="date" id="endDate" required>
-          </div>
-          <div class="form-group">
-            <label>
-              <input type="checkbox" id="weekdaysOnly" checked> Weekdays only
-            </label>
-          </div>
-          <div class="form-group">
-            <label>Max Capacity</label>
-            <input type="number" name="max_capacity" value="12" min="1" style="width: 80px;">
-          </div>
-          <input type="hidden" name="dates" id="dateRange">
-          <button type="submit" class="btn btn-green btn-sm" onclick="return buildDateRange()">Add Dates</button>
-        </div>
-      </form>
-
-      <h2 style="margin-bottom: 16px;">Current Dates (<%= dates.length %>)</h2>
-      <% if (dates.length > 0) { %>
-        <table class="data-table">
-          <thead>
+    <h2 style="margin-bottom: 16px;">Current Dates (<%= dates.length %>)</h2>
+    <% if (dates.length > 0) { %>
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>Day</th>
+            <th>Capacity</th>
+            <th>Enrolled</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          <% dates.forEach(d => { %>
+            <% const dt = new Date(d.date + 'T00:00:00'); %>
             <tr>
-              <th>Date</th>
-              <th>Day</th>
-              <th>Capacity</th>
-              <th>Enrolled</th>
-              <th></th>
+              <td><%= d.date %></td>
+              <td><%= dt.toLocaleDateString('en-US', { weekday: 'long' }) %></td>
+              <td><%= d.maxCapacity %></td>
+              <td><%= d.enrolled || 0 %></td>
+              <td>
+                <% if (!d.enrolled) { %>
+                  <form method="POST" action="/admin/dates/remove" style="display:inline;">
+                    <input type="hidden" name="date_to_remove" value="<%= d.date %>">
+                    <input type="hidden" name="program_id" value="<%= selectedProgramId %>">
+                    <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Remove this date?')">Remove</button>
+                  </form>
+                <% } else { %>
+                  <span style="color: var(--text-light); font-size: 0.8rem;">Has enrollments</span>
+                <% } %>
+              </td>
             </tr>
-          </thead>
-          <tbody>
-            <% dates.forEach(d => { %>
-              <% const dt = new Date(d.date + 'T00:00:00'); %>
-              <tr>
-                <td><%= d.date %></td>
-                <td><%= dt.toLocaleDateString('en-US', { weekday: 'long' }) %></td>
-                <td><%= d.maxCapacity %></td>
-                <td><%= d.enrolled || 0 %></td>
-                <td>
-                  <% if (!d.enrolled) { %>
-                    <form method="POST" action="/admin/dates/remove" style="display:inline;">
-                      <input type="hidden" name="date_to_remove" value="<%= d.date %>">
-                      <input type="hidden" name="program_id" value="<%= selectedProgramId %>">
-                      <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Remove this date?')">Remove</button>
-                    </form>
-                  <% } else { %>
-                    <span style="color: var(--text-light); font-size: 0.8rem;">Has enrollments</span>
-                  <% } %>
-                </td>
-              </tr>
-            <% }) %>
-          </tbody>
-        </table>
-      <% } else { %>
-        <p style="color: var(--text-light);">No dates configured for this program.</p>
-      <% } %>
+          <% }) %>
+        </tbody>
+      </table>
+    <% } else { %>
+      <p style="color: var(--text-light);">No dates configured.</p>
     <% } %>
   </main>
 </div>
@@ -97,9 +83,7 @@ function buildDateRange() {
   const endDt = new Date(end + 'T00:00:00');
   while (cur <= endDt) {
     const dow = cur.getDay();
-    if (!weekdaysOnly || (dow >= 1 && dow <= 5)) {
-      dates.push(cur.toISOString().split('T')[0]);
-    }
+    if (!weekdaysOnly || (dow >= 1 && dow <= 5)) dates.push(cur.toISOString().split('T')[0]);
     cur.setDate(cur.getDate() + 1);
   }
   if (dates.length === 0) { alert('No dates in range.'); return false; }
