@@ -207,6 +207,7 @@
               cell.title = 'This date is full';
             } else {
               cell.classList.add('available');
+              cell.style.background = '#ffffff';
               cell.title = `${c.avail.available} of ${c.avail.capacity} spots`;
               cell.dataset.dateId = c.avail.date;
               cell.addEventListener('click', () => {
@@ -235,7 +236,10 @@
   function refreshAllCells() {
     calendarEl.querySelectorAll('.day-cell.available').forEach(cell => {
       const id = cell.dataset.dateId;
-      cell.classList.toggle('selected', selected.has(id));
+      const isSel = selected.has(id);
+      cell.classList.toggle('selected', isSel);
+      cell.style.background = isSel ? '#2c4a2e' : '#ffffff';
+      cell.style.color = isSel ? '#ffffff' : '#2c4a2e';
     });
     calendarEl.querySelectorAll('.week-toggle').forEach(cell => {
       const ids = cell._dateIds;
