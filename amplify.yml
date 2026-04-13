@@ -23,7 +23,7 @@ frontend:
         - echo "WIW_ACCESS_KEY_ID=$WIW_ACCESS_KEY_ID" >> .amplify-hosting/compute/default/.env
         - echo "WIW_SECRET_ACCESS_KEY=$WIW_SECRET_ACCESS_KEY" >> .amplify-hosting/compute/default/.env
         - echo "WIW_S3_BUCKET=$WIW_S3_BUCKET" >> .amplify-hosting/compute/default/.env
-        - cd .amplify-hosting/compute/default && npm ci --omit=dev
+        - cd .amplify-hosting/compute/default && rm -rf node_modules && npm ci --omit=dev
   artifacts:
     baseDirectory: .amplify-hosting
     files:
