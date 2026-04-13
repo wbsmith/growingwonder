@@ -57,17 +57,51 @@
             [{ 'header': [2, 3, false] }],
             ['bold', 'italic', 'underline'],
             [{ 'color': [] }, { 'background': [] }],
+            [{ 'align': [] }, { 'align': 'center' }, { 'align': 'right' }],
             [{ 'list': 'ordered' }, { 'list': 'bullet' }],
             ['link'],
-            ['clean']
+            ['clean'],
+            ['html-toggle']
           ]
         }
       },
       placeholder: 'Detailed program description...'
     });
 
+    // HTML source toggle
+    const htmlBtn = document.querySelector('.ql-html-toggle');
+    if (htmlBtn) {
+      htmlBtn.innerHTML = '&lt;/&gt;';
+      htmlBtn.title = 'Edit HTML source';
+    }
+    let htmlMode = false;
+    let htmlTextarea = null;
+
+    if (htmlBtn) htmlBtn.addEventListener('click', function() {
+      if (!htmlMode) {
+        // Switch to HTML source
+        htmlTextarea = document.createElement('textarea');
+        htmlTextarea.style.cssText = 'width:100%; min-height:200px; padding:12px; font-family:monospace; font-size:0.85rem; border:1px solid #ccc; border-radius:0 0 var(--radius) var(--radius);';
+        htmlTextarea.value = quill.root.innerHTML;
+        quill.container.style.display = 'none';
+        quill.container.parentNode.insertBefore(htmlTextarea, quill.container.nextSibling);
+        htmlBtn.style.background = '#e8f5e9';
+      } else {
+        // Switch back to rich editor
+        quill.root.innerHTML = htmlTextarea.value;
+        htmlTextarea.remove();
+        htmlTextarea = null;
+        quill.container.style.display = '';
+        htmlBtn.style.background = '';
+      }
+      htmlMode = !htmlMode;
+    });
+
     document.getElementById('descForm').addEventListener('submit', function() {
-      // Don't save the empty editor placeholder
+      // If in HTML mode, grab from textarea
+      if (htmlMode && htmlTextarea) {
+        quill.root.innerHTML = htmlTextarea.value;
+      }
       const html = quill.root.innerHTML;
       document.getElementById('descHidden').value = (html === '<p><br></p>') ? '' : html;
     });
