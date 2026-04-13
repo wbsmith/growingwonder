@@ -207,19 +207,9 @@
               cell.title = 'This date is full';
             } else {
               cell.classList.add('available');
-              cell.style.background = '#ffffff';
               cell.title = `${c.avail.available} of ${c.avail.capacity} spots`;
               cell.dataset.dateId = c.avail.date;
-              let touched = false;
-              cell.addEventListener('touchend', (e) => {
-                e.preventDefault();
-                touched = true;
-                toggleDate(c.avail.date);
-                refreshAllCells();
-                updateSummary();
-              }, { passive: false });
               cell.addEventListener('click', () => {
-                if (touched) { touched = false; return; }
                 toggleDate(c.avail.date);
                 refreshAllCells();
                 updateSummary();
@@ -247,8 +237,11 @@
       const id = cell.dataset.dateId;
       const isSel = selected.has(id);
       cell.classList.toggle('selected', isSel);
-      cell.style.background = isSel ? '#2c4a2e' : '#ffffff';
-      cell.style.color = isSel ? '#ffffff' : '#2c4a2e';
+      // Remove the element and re-insert to kill any stuck browser hover/active state
+      const parent = cell.parentNode;
+      const next = cell.nextSibling;
+      parent.removeChild(cell);
+      parent.insertBefore(cell, next);
     });
     calendarEl.querySelectorAll('.week-toggle').forEach(cell => {
       const ids = cell._dateIds;

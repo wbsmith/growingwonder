@@ -365,10 +365,16 @@ a:hover { color: var(--green-dark); }
 }
 .calendar-grid .day-cell.available {
   cursor: pointer;
+  background: #ffffff;
   color: var(--green-dark);
   font-weight: 700;
   border: 1px solid var(--green-mid);
   -webkit-tap-highlight-color: transparent;
+}
+.calendar-grid .day-cell.available.selected {
+  background: #2c4a2e;
+  color: #ffffff;
+  border-color: #2c4a2e;
 }
 .calendar-grid .day-cell.full {
   color: #bbb;
