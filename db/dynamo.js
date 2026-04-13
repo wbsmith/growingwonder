@@ -42,10 +42,50 @@ async function createProgram(name, description) {
   const id = 'prog_' + ulid();
   await client.send(new PutCommand({
     TableName: T.programs,
-    Item: { id, name, description: description || null, createdAt: new Date().toISOString() },
+    Item: {
+      id, name, description: description || null,
+      longDescription: null,
+      heroImage: null,
+      media: [],  // [{type:'image'|'video', url, key, caption}]
+      createdAt: new Date().toISOString(),
+    },
     ConditionExpression: 'attribute_not_exists(id)',
   }));
   return id;
+}
+
+async function updateProgramContent(id, longDescription, heroImage) {
+  const params = {
+    TableName: T.programs,
+    Key: { id },
+    UpdateExpression: 'SET longDescription = :ld',
+    ExpressionAttributeValues: { ':ld': longDescription || null },
+  };
+  if (heroImage !== undefined) {
+    params.UpdateExpression += ', heroImage = :hi';
+    params.ExpressionAttributeValues[':hi'] = heroImage || null;
+  }
+  await client.send(new UpdateCommand(params));
+}
+
+async function addProgramMedia(id, mediaItem) {
+  await client.send(new UpdateCommand({
+    TableName: T.programs,
+    Key: { id },
+    UpdateExpression: 'SET media = list_append(if_not_exists(media, :empty), :item)',
+    ExpressionAttributeValues: {
+      ':empty': [],
+      ':item': [mediaItem],
+    },
+  }));
+}
+
+async function removeProgramMedia(id, mediaIndex) {
+  await client.send(new UpdateCommand({
+    TableName: T.programs,
+    Key: { id },
+    UpdateExpression: `REMOVE media[${parseInt(mediaIndex, 10)}]`,
+  }));
 }
 
 async function deleteProgram(id) {
@@ -368,6 +408,7 @@ async function countNewInquiries() {
 
 module.exports = {
   getAllPrograms, getProgram, createProgram, deleteProgram,
+  updateProgramContent, addProgramMedia, removeProgramMedia,
   getDatesByProgram, addDates, removeDate,
   createRegistration, getEnrollments, getRegistrationsByProgram,
   countRegistrationsByProgram, updatePayment,

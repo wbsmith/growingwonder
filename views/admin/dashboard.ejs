@@ -11,13 +11,16 @@
         <div class="stat-card">
           <div class="number"><%= s.total_registrations %></div>
           <div class="label"><%= s.name %> registrations</div>
-          <% if (s.total_registrations === 0) { %>
-            <form method="POST" action="/admin/programs/remove" style="margin-top: 8px;">
-              <input type="hidden" name="program_id" value="<%= s.id %>">
-              <button type="submit" class="btn btn-danger btn-sm"
-                onclick="return confirm('Remove program \'<%= s.name %>\'? This also removes its configured dates.')">Remove</button>
-            </form>
-          <% } %>
+          <div style="margin-top: 8px; display: flex; gap: 8px;">
+            <a href="/admin/programs/<%= s.id %>/edit" class="btn btn-outline btn-sm">Edit Content</a>
+            <% if (s.total_registrations === 0) { %>
+              <form method="POST" action="/admin/programs/remove" style="display:inline;">
+                <input type="hidden" name="program_id" value="<%= s.id %>">
+                <button type="submit" class="btn btn-danger btn-sm"
+                  onclick="return confirm('Remove program \'<%= s.name %>\'? This also removes its configured dates.')">Remove</button>
+              </form>
+            <% } %>
+          </div>
         </div>
       <% }) %>
       <div class="stat-card">

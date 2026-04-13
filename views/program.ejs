@@ -1,0 +1,82 @@
+<%- include('layout_head', { title: program.name }) %>
+
+<nav class="site-nav">
+  <a href="/" class="logo">World in Wonder</a>
+  <div class="nav-links">
+    <a href="/#programs">Programs</a>
+    <a href="/register">Register</a>
+    <a href="#" onclick="if(typeof openContactModal==='function')openContactModal(); return false;">Contact</a>
+  </div>
+</nav>
+
+<!-- Hero -->
+<section class="program-hero" <% if (program.heroImage) { %>style="background-image: linear-gradient(rgba(44,74,46,0.7), rgba(44,74,46,0.85)), url('<%= program.heroImage %>');"<% } %>>
+  <div class="program-hero-content">
+    <h1><%= program.name %></h1>
+    <p><%= program.description %></p>
+    <a href="/register?program=<%= program.id %>" class="btn btn-primary">Register Now</a>
+  </div>
+</section>
+
+<!-- Content -->
+<div class="program-page">
+  <% if (program.longDescription) { %>
+    <div class="program-description">
+      <%- program.longDescription.replace(/\n/g, '<br>') %>
+    </div>
+  <% } %>
+
+  <% const media = program.media || []; %>
+  <% const images = media.filter(m => m.type === 'image'); %>
+  <% const videos = media.filter(m => m.type === 'video'); %>
+
+  <% if (images.length > 0) { %>
+    <div class="program-gallery">
+      <% images.forEach(img => { %>
+        <div class="gallery-item">
+          <img src="<%= img.url %>" alt="<%= img.caption || program.name %>">
+          <% if (img.caption) { %>
+            <div class="gallery-caption"><%= img.caption %></div>
+          <% } %>
+        </div>
+      <% }) %>
+    </div>
+  <% } %>
+
+  <% if (videos.length > 0) { %>
+    <div class="program-videos">
+      <% videos.forEach(vid => { %>
+        <div class="video-item">
+          <video controls preload="metadata">
+            <source src="<%= vid.url %>">
+          </video>
+          <% if (vid.caption) { %>
+            <div class="gallery-caption"><%= vid.caption %></div>
+          <% } %>
+        </div>
+      <% }) %>
+    </div>
+  <% } %>
+
+  <% if (!program.longDescription && media.length === 0) { %>
+    <div style="text-align: center; color: var(--text-light); padding: 40px;">
+      <p>More details coming soon.</p>
+    </div>
+  <% } %>
+
+  <div class="program-cta">
+    <a href="/register?program=<%= program.id %>" class="btn btn-green">Register for <%= program.name %></a>
+    <a href="/#programs" class="btn btn-outline" style="margin-left: 12px;">All Programs</a>
+  </div>
+</div>
+
+<footer class="site-footer">
+  <p>World in Wonder &mdash; Nature Programs for Young Explorers</p>
+  <p>Roy's Redwoods, Deer Park, Wall Hill &mdash; Fairfax, CA</p>
+  <div class="footer-links">
+    <a href="tel:+14152722241">415-272-2241</a>
+    <a href="mailto:info@worldinwonder.com">Email Us</a>
+  </div>
+</footer>
+
+<%- include('layout_foot') %>

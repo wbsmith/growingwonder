@@ -3,6 +3,7 @@ const router = express.Router();
 const db = require('../db/dynamo');
 const { validateAdmin, requireAuth } = require('../lib/auth');
 const mailer = require('../lib/mailer');
+const storage = require('../lib/storage');
 
 const asyncHandler = fn => (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
 
@@ -325,6 +326,50 @@ router.post('/inquiries/:id/reply', requireAuth, asyncHandler(async (req, res) =
   await db.replyToInquiry(req.params.id, reply);
   req.session.flash = { type: 'success', msg: inquiry.email ? `Reply sent to ${inquiry.email}.` : 'Reply saved (no email on file).' };
   res.redirect(303, '/admin/inquiries');
+}));
+
+// Program content editor
+router.get('/programs/:id/edit', requireAuth, asyncHandler(async (req, res) => {
+  const program = await db.getProgram(req.params.id);
+  if (!program) return res.status(404).send('Program not found');
+  res.render('admin/program_edit', { program });
+}));
+
+router.post('/programs/:id/content', requireAuth, asyncHandler(async (req, res) => {
+  const { long_description } = req.body;
+  await db.updateProgramContent(req.params.id, long_description);
+  req.session.flash = { type: 'success', msg: 'Content updated.' };
+  res.redirect(303, '/admin/programs/' + req.params.id + '/edit');
+}));
+
+router.post('/programs/:id/upload-url', requireAuth, asyncHandler(async (req, res) => {
+  const { filename, contentType } = req.body;
+  const result = await storage.getUploadUrl(req.params.id, filename, contentType);
+  res.json(result);
+}));
+
+router.post('/programs/:id/media', requireAuth, asyncHandler(async (req, res) => {
+  const { type, url, key, caption } = req.body;
+  await db.addProgramMedia(req.params.id, { type, url, key, caption: caption || null });
+  req.session.flash = { type: 'success', msg: 'Media added.' };
+  res.redirect(303, '/admin/programs/' + req.params.id + '/edit');
+}));
+
+router.post('/programs/:id/media/remove', requireAuth, asyncHandler(async (req, res) => {
+  const { index, key } = req.body;
+  if (key) {
+    try { await storage.deleteFile(key); } catch (e) { console.error('S3 delete error:', e); }
+  }
+  await db.removeProgramMedia(req.params.id, index);
+  req.session.flash = { type: 'success', msg: 'Media removed.' };
+  res.redirect(303, '/admin/programs/' + req.params.id + '/edit');
+}));
+
+router.post('/programs/:id/hero', requireAuth, asyncHandler(async (req, res) => {
+  const { url } = req.body;
+  await db.updateProgramContent(req.params.id, undefined, url || null);
+  req.session.flash = { type: 'success', msg: 'Hero image updated.' };
+  res.redirect(303, '/admin/programs/' + req.params.id + '/edit');
 }));
 
 // Program management

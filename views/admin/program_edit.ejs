@@ -1,0 +1,165 @@
+<%- include('../layout_head', { title: 'Edit ' + program.name }) %>
+<link rel="stylesheet" href="/css/admin.css">
+
+<div class="admin-layout">
+  <%- include('_sidebar', { active: 'dashboard' }) %>
+  <main class="admin-main">
+    <h1>Edit: <%= program.name %></h1>
+    <p style="margin-bottom: 24px;">
+      <a href="/programs/<%= program.id %>" target="_blank" class="btn btn-outline btn-sm">Preview Page</a>
+    </p>
+
+    <!-- Hero Image -->
+    <h2 style="margin-bottom: 12px;">Hero Image</h2>
+    <div style="margin-bottom: 24px;">
+      <% if (program.heroImage) { %>
+        <div style="margin-bottom: 12px;">
+          <img src="<%= program.heroImage %>" style="max-width: 400px; border-radius: var(--radius); border: 1px solid #ddd;">
+        </div>
+      <% } %>
+      <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+        <input type="file" id="heroFile" accept="image/*" style="font-size: 0.85rem;">
+        <button type="button" class="btn btn-green btn-sm" onclick="uploadHero()">Upload Hero</button>
+        <% if (program.heroImage) { %>
+          <form method="POST" action="/admin/programs/<%= program.id %>/hero" style="display:inline;">
+            <input type="hidden" name="url" value="">
+            <button type="submit" class="btn btn-danger btn-sm">Remove</button>
+          </form>
+        <% } %>
+      </div>
+      <div id="heroStatus" style="font-size: 0.85rem; color: var(--text-light); margin-top: 8px;"></div>
+    </div>
+
+    <!-- Long Description -->
+    <h2 style="margin-bottom: 12px;">Description</h2>
+    <form method="POST" action="/admin/programs/<%= program.id %>/content" style="margin-bottom: 32px;">
+      <div class="form-group">
+        <textarea name="long_description" rows="8"
+          style="width: 100%; padding: 12px; border: 1px solid #ccc; border-radius: var(--radius); font-family: inherit; font-size: 0.95rem;"
+          placeholder="Detailed program description..."><%= program.longDescription || '' %></textarea>
+      </div>
+      <button type="submit" class="btn btn-green btn-sm">Save Description</button>
+    </form>
+
+    <!-- Media Gallery -->
+    <h2 style="margin-bottom: 12px;">Media</h2>
+
+    <% const media = program.media || []; %>
+    <% if (media.length > 0) { %>
+      <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 16px; margin-bottom: 24px;">
+        <% media.forEach((m, idx) => { %>
+          <div style="background: var(--white); border-radius: var(--radius); border: 1px solid #ddd; overflow: hidden;">
+            <% if (m.type === 'image') { %>
+              <img src="<%= m.url %>" style="width: 100%; height: 150px; object-fit: cover;">
+            <% } else { %>
+              <video src="<%= m.url %>" style="width: 100%; height: 150px; object-fit: cover;" preload="metadata"></video>
+            <% } %>
+            <div style="padding: 8px;">
+              <div style="font-size: 0.8rem; color: var(--text-light); margin-bottom: 6px;"><%= m.type %><%= m.caption ? ': ' + m.caption : '' %></div>
+              <form method="POST" action="/admin/programs/<%= program.id %>/media/remove">
+                <input type="hidden" name="index" value="<%= idx %>">
+                <input type="hidden" name="key" value="<%= m.key || '' %>">
+                <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Remove this media?')">Remove</button>
+              </form>
+            </div>
+          </div>
+        <% }) %>
+      </div>
+    <% } %>
+
+    <div style="background: var(--sand); border-radius: var(--radius); padding: 20px; margin-bottom: 24px;">
+      <h3 style="margin-bottom: 12px; font-size: 1rem; color: var(--green-dark);">Add Media</h3>
+      <div class="form-group">
+        <label>File (image or video)</label>
+        <input type="file" id="mediaFile" accept="image/*,video/*" style="font-size: 0.85rem;">
+      </div>
+      <div class="form-group">
+        <label>Caption (optional)</label>
+        <input type="text" id="mediaCaption" style="padding: 8px 12px; border: 1px solid #ccc; border-radius: var(--radius); width: 100%;">
+      </div>
+      <button type="button" class="btn btn-green btn-sm" onclick="uploadMedia()">Upload</button>
+      <div id="mediaStatus" style="font-size: 0.85rem; color: var(--text-light); margin-top: 8px;"></div>
+    </div>
+
+    <a href="/admin" class="btn btn-outline">Back to Dashboard</a>
+  </main>
+</div>
+
+<script>
+async function getPresignedUrl(filename, contentType) {
+  const res = await fetch('/admin/programs/<%= program.id %>/upload-url', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ filename, contentType }),
+  });
+  return res.json();
+}
+
+async function uploadToS3(file, presigned) {
+  await fetch(presigned.uploadUrl, {
+    method: 'PUT',
+    headers: { 'Content-Type': file.type },
+    body: file,
+  });
+  return presigned;
+}
+
+async function uploadHero() {
+  const file = document.getElementById('heroFile').files[0];
+  const status = document.getElementById('heroStatus');
+  if (!file) { status.textContent = 'Select a file first.'; return; }
+  if (!file.type.startsWith('image/')) { status.textContent = 'Must be an image.'; return; }
+
+  status.textContent = 'Uploading...';
+  try {
+    const presigned = await getPresignedUrl(file.name, file.type);
+    await uploadToS3(file, presigned);
+
+    // Save the hero URL
+    const form = document.createElement('form');
+    form.method = 'POST';
+    form.action = '/admin/programs/<%= program.id %>/hero';
+    const input = document.createElement('input');
+    input.type = 'hidden';
+    input.name = 'url';
+    input.value = presigned.publicUrl;
+    form.appendChild(input);
+    document.body.appendChild(form);
+    form.submit();
+  } catch (err) {
+    status.textContent = 'Upload failed: ' + err.message;
+  }
+}
+
+async function uploadMedia() {
+  const file = document.getElementById('mediaFile').files[0];
+  const caption = document.getElementById('mediaCaption').value.trim();
+  const status = document.getElementById('mediaStatus');
+  if (!file) { status.textContent = 'Select a file first.'; return; }
+
+  const type = file.type.startsWith('video/') ? 'video' : 'image';
+  status.textContent = 'Uploading...';
+  try {
+    const presigned = await getPresignedUrl(file.name, file.type);
+    await uploadToS3(file, presigned);
+
+    // Save the media entry
+    const form = document.createElement('form');
+    form.method = 'POST';
+    form.action = '/admin/programs/<%= program.id %>/media';
+    [['type', type], ['url', presigned.publicUrl], ['key', presigned.key], ['caption', caption]].forEach(([k, v]) => {
+      const input = document.createElement('input');
+      input.type = 'hidden';
+      input.name = k;
+      input.value = v;
+      form.appendChild(input);
+    });
+    document.body.appendChild(form);
+    form.submit();
+  } catch (err) {
+    status.textContent = 'Upload failed: ' + err.message;
+  }
+}
+</script>
+
+<%- include('../layout_foot') %>
