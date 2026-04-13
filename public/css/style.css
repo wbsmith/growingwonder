@@ -371,8 +371,10 @@ a:hover { color: var(--green-dark); }
   border: 1px solid var(--green-mid);
   transition: background 0.15s;
 }
-.calendar-grid .day-cell.available:hover {
-  background: #e8f5e9;
+@media (hover: hover) {
+  .calendar-grid .day-cell.available:hover {
+    background: #e8f5e9;
+  }
 }
 .calendar-grid .day-cell.selected {
   background: var(--green-mid);

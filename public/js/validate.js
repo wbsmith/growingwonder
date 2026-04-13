@@ -7,9 +7,7 @@
   // --- Phone: auto-format to (XXX) XXX-XXXX ---
 
   phoneInput.addEventListener('input', function () {
-    // Strip to digits only
     const digits = this.value.replace(/\D/g, '').slice(0, 10);
-    // Format as we go
     let formatted = '';
     if (digits.length > 0) formatted = '(' + digits.slice(0, 3);
     if (digits.length >= 3) formatted += ') ';
@@ -44,13 +42,11 @@
 
   emailInput.addEventListener('blur', validateEmail);
   emailInput.addEventListener('input', function () {
-    // Clear error while typing if it becomes valid
     if (emailPattern.test(this.value)) {
       this.classList.add('valid');
       this.classList.remove('invalid');
       emailError.textContent = '';
     } else if (this.classList.contains('invalid')) {
-      // Re-check on each keystroke only if already flagged
       validateEmail();
     }
   });
@@ -71,30 +67,75 @@
     }
   }
 
-  // --- Prevent submit if invalid ---
+  // --- Full form validation on submit (no page reload) ---
 
   const form = document.getElementById('regForm');
-  form.addEventListener('submit', function (e) {
-    const digits = phoneInput.value.replace(/\D/g, '');
-    const emailVal = emailInput.value.trim();
-    let hasError = false;
 
-    if (digits.length !== 10) {
-      phoneInput.classList.add('invalid');
-      phoneError.textContent = 'Please enter a complete 10-digit phone number.';
-      hasError = true;
+  // Get or create a general error element at the top of the form
+  let formError = document.getElementById('formError');
+  if (!formError) {
+    formError = document.createElement('div');
+    formError.id = 'formError';
+    formError.style.cssText = 'display:none; background:#f8d7da; color:#721c24; padding:12px 16px; border-radius:8px; margin-bottom:16px; font-size:0.9rem;';
+    form.insertBefore(formError, form.firstChild);
+  }
+
+  form.addEventListener('submit', function (e) {
+    const errors = [];
+    formError.style.display = 'none';
+
+    // Program
+    const program = document.getElementById('programSelect');
+    if (!program.value) {
+      errors.push('Please select a program.');
     }
+
+    // Dates
+    const selectedDates = document.getElementById('selectedDates');
+    if (!selectedDates.value) {
+      errors.push('Please select at least one date.');
+    }
+
+    // Parent name
+    const parentName = form.querySelector('input[name="parent_name"]');
+    if (!parentName.value.trim()) {
+      errors.push('Parent/Guardian name is required.');
+    }
+
+    // Email
+    const emailVal = emailInput.value.trim();
     if (!emailPattern.test(emailVal)) {
       emailInput.classList.add('invalid');
       emailError.textContent = 'Please enter a valid email address.';
-      hasError = true;
+      errors.push('Please enter a valid email address.');
     }
 
-    if (hasError) {
+    // Phone
+    const digits = phoneInput.value.replace(/\D/g, '');
+    if (digits.length !== 10) {
+      phoneInput.classList.add('invalid');
+      phoneError.textContent = 'Please enter a complete 10-digit phone number.';
+      errors.push('Please enter a valid 10-digit phone number.');
+    }
+
+    // At least one child with name and DOB
+    const childNames = form.querySelectorAll('input[name$="[name]"]');
+    const childDobs = form.querySelectorAll('input[name$="[dob]"]');
+    let hasChild = false;
+    childNames.forEach((nameInput, i) => {
+      if (nameInput.value.trim() && childDobs[i] && childDobs[i].value) {
+        hasChild = true;
+      }
+    });
+    if (!hasChild) {
+      errors.push('Please add at least one child with name and date of birth.');
+    }
+
+    if (errors.length > 0) {
       e.preventDefault();
-      // Scroll to first error
-      const firstInvalid = form.querySelector('.invalid');
-      if (firstInvalid) firstInvalid.focus();
+      formError.innerHTML = errors.join('<br>');
+      formError.style.display = 'block';
+      formError.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }
   });
 })();
