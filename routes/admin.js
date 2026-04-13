@@ -345,6 +345,27 @@ router.post('/messages/emails/:id/update', requireAuth, asyncHandler(async (req,
   res.redirect('/admin/messages/emails/' + req.params.id + '/edit');
 }));
 
+router.post('/messages/emails/:id/upload-url', requireAuth, asyncHandler(async (req, res) => {
+  const { filename, contentType } = req.body;
+  const result = await storage.getUploadUrl('email-attachments', filename, contentType);
+  res.json(result);
+}));
+
+router.post('/messages/emails/:id/attach', requireAuth, asyncHandler(async (req, res) => {
+  const { filename, url, key, contentType } = req.body;
+  await db.addEmailAttachment(req.params.id, { filename, url, key, contentType });
+  req.session.flash = { type: 'success', msg: `Attachment "${filename}" added.` };
+  res.redirect(303, '/admin/messages/emails/' + req.params.id + '/edit');
+}));
+
+router.post('/messages/emails/:id/detach', requireAuth, asyncHandler(async (req, res) => {
+  const { index, key } = req.body;
+  if (key) { try { await storage.deleteFile(key); } catch (e) { console.error('S3 delete:', e); } }
+  await db.removeEmailAttachment(req.params.id, index);
+  req.session.flash = { type: 'success', msg: 'Attachment removed.' };
+  res.redirect(303, '/admin/messages/emails/' + req.params.id + '/edit');
+}));
+
 router.post('/messages/emails/:id/send', requireAuth, asyncHandler(async (req, res) => {
   const email = await db.getEmail(req.params.id);
   if (!email || email.status !== 'draft') {
@@ -356,7 +377,25 @@ router.post('/messages/emails/:id/send', requireAuth, asyncHandler(async (req, r
     return res.redirect('/admin/messages/emails/' + req.params.id + '/edit');
   }
   try {
-    await mailer.send(email.toAddr, email.subject, email.body, 'registration');
+    // Build attachments from S3
+    const attachments = [];
+    if (email.attachments && email.attachments.length > 0) {
+      const { GetObjectCommand } = require('@aws-sdk/client-s3');
+      const { S3Client } = require('@aws-sdk/client-s3');
+      const s3Config = { region: process.env.WIW_AWS_REGION || process.env.AWS_REGION || 'us-west-1' };
+      if (process.env.WIW_ACCESS_KEY_ID) {
+        s3Config.credentials = { accessKeyId: process.env.WIW_ACCESS_KEY_ID, secretAccessKey: process.env.WIW_SECRET_ACCESS_KEY };
+      }
+      const s3 = new S3Client(s3Config);
+      const bucket = process.env.WIW_S3_BUCKET || 'wiw-media-assets';
+      for (const att of email.attachments) {
+        const obj = await s3.send(new GetObjectCommand({ Bucket: bucket, Key: att.key }));
+        const chunks = [];
+        for await (const chunk of obj.Body) chunks.push(chunk);
+        attachments.push({ filename: att.filename, content: Buffer.concat(chunks), contentType: att.contentType });
+      }
+    }
+    await mailer.send(email.toAddr, email.subject, email.body, 'registration', attachments);
     await db.markEmailSent(email.id);
     req.session.flash = { type: 'success', msg: `Email sent to ${email.toAddr}.` };
   } catch (err) {

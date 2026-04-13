@@ -311,6 +311,23 @@ async function updateEmailDraft(id, subject, body) {
   }));
 }
 
+async function addEmailAttachment(id, attachment) {
+  await client.send(new UpdateCommand({
+    TableName: T.emails,
+    Key: { id },
+    UpdateExpression: 'SET attachments = list_append(if_not_exists(attachments, :empty), :item)',
+    ExpressionAttributeValues: { ':empty': [], ':item': [attachment] },
+  }));
+}
+
+async function removeEmailAttachment(id, index) {
+  await client.send(new UpdateCommand({
+    TableName: T.emails,
+    Key: { id },
+    UpdateExpression: `REMOVE attachments[${parseInt(index, 10)}]`,
+  }));
+}
+
 async function markEmailSent(id) {
   await client.send(new UpdateCommand({
     TableName: T.emails,
@@ -482,7 +499,8 @@ module.exports = {
   getDatesByProgram, addDates, removeDate,
   createRegistration, getEnrollments, getRegistrationsByProgram,
   countRegistrationsByProgram, updatePayment,
-  getAllEmails, getEmail, updateEmailDraft, markEmailSent, markEmailFailed,
+  getAllEmails, getEmail, updateEmailDraft, addEmailAttachment, removeEmailAttachment,
+  markEmailSent, markEmailFailed,
   countPendingEmails, getDashboardStats,
   createInquiry, getAllInquiries, getInquiry, replyToInquiry, countNewInquiries,
   getEmailsByDate, getEmailsByWeek, getAllEmails_addresses,
