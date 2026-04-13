@@ -2,15 +2,9 @@
 <link rel="stylesheet" href="/css/admin.css">
 
 <div class="admin-layout">
-  <%- include('_sidebar', { active: 'messages' }) %>
+  <%- include('_sidebar', { active: 'messages', tab: tab }) %>
   <main class="admin-main">
-    <h1>Messages</h1>
-
-    <%- include('_tabs', { tabs: [
-      { label: 'Confirmations', href: '/admin/messages?tab=confirmations', active: tab === 'confirmations', badge: pendingEmails > 0 ? pendingEmails : null },
-      { label: 'Bulk Send', href: '/admin/messages?tab=bulk', active: tab === 'bulk' },
-      { label: 'Inquiries', href: '/admin/messages?tab=inquiries', active: tab === 'inquiries', badge: newInquiries > 0 ? newInquiries : null },
-    ]}) %>
+    <h1><%= tab === 'bulk' ? 'Bulk Send' : tab === 'inquiries' ? 'Inquiries' : 'Confirmations' %></h1>
 
     <% if (tab === 'confirmations') { %>
       <!-- CONFIRMATIONS TAB -->

@@ -63,12 +63,19 @@ async function updateProgramDescription(id, longDescription) {
   }));
 }
 
-async function updateProgramHero(id, heroImage) {
+async function updateProgramHero(id, data) {
+  const expr = [];
+  const vals = {};
+  if (data.heroImage !== undefined) { expr.push('heroImage = :hi'); vals[':hi'] = data.heroImage || null; }
+  if (data.heroTitle !== undefined) { expr.push('heroTitle = :ht'); vals[':ht'] = data.heroTitle || null; }
+  if (data.heroSubtitle !== undefined) { expr.push('heroSubtitle = :hs'); vals[':hs'] = data.heroSubtitle || null; }
+  if (data.heroOverlay !== undefined) { expr.push('heroOverlay = :ho'); vals[':ho'] = data.heroOverlay || null; }
+  if (expr.length === 0) return;
   await client.send(new UpdateCommand({
     TableName: T.programs,
     Key: { id },
-    UpdateExpression: 'SET heroImage = :hi',
-    ExpressionAttributeValues: { ':hi': heroImage || null },
+    UpdateExpression: 'SET ' + expr.join(', '),
+    ExpressionAttributeValues: vals,
   }));
 }
 

@@ -1,7 +1,7 @@
 <%- include('layout_head', { title: 'Home' }) %>
 
 <nav class="site-nav">
-  <a href="/" class="logo">World in Wonder</a>
+  <a href="/" class="logo"><%= site.name %></a>
   <div class="nav-links">
     <a href="/#programs">Programs</a>
     <a href="/register">Register</a>
@@ -12,7 +12,7 @@
 <section class="hero">
   <div>
     <h1>Step Into the Forest.<br>Grow With Wonder.</h1>
-    <p>Nature-based programs for young explorers. Camps, adventure days, and school programs in the heart of Marin County.</p>
+    <p>Nature-based programs for young explorers. Camps, adventure days, and school programs in the heart of <%= site.region %>.</p>
     <a href="/register" class="btn btn-primary">Register Now</a>
     <div style="margin-top: 16px;">
       <a href="#" onclick="openContactModal(); return false;" style="color: rgba(255,255,255,0.85); font-weight: 600;">Get in touch</a>
@@ -69,14 +69,7 @@
   </div>
 </section>
 
-<footer class="site-footer" id="contact">
-  <p>World in Wonder &mdash; Nature Programs for Young Explorers</p>
-  <p>Roy's Redwoods, Deer Park, Wall Hill &mdash; Fairfax, CA</p>
-  <div class="footer-links">
-    <a href="tel:+14152722241">415-272-2241</a>
-    <a href="mailto:info@worldinwonder.com">Email Us</a>
-  </div>
-</footer>
+<%- include('_footer') %>
 
 <!-- Contact Modal -->
 <div id="contactModal" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.4); z-index: 100; align-items: center; justify-content: center;">
@@ -124,8 +117,8 @@
     <div style="margin-top: 24px; padding-top: 16px; border-top: 1px solid #eee; font-size: 0.9rem; color: var(--text-light);">
       You can also reach us directly:
       <div style="margin-top: 8px;">
-        <a href="tel:+14152722241" style="display: block; margin-bottom: 4px;">415-272-2241</a>
-        <a href="mailto:info@worldinwonder.com">info@worldinwonder.com</a>
+        <a href="<%= site.phoneHref %>" style="display: block; margin-bottom: 4px;"><%= site.phone %></a>
+        <a href="mailto:<%= site.email %>"><%= site.email %></a>
       </div>
     </div>
   </div>
@@ -153,7 +146,6 @@ document.getElementById('cMessage').addEventListener('input', function() {
   document.getElementById('charCount').textContent = this.value.length;
 });
 
-// Auto-format phone
 document.getElementById('cPhone').addEventListener('input', function() {
   const digits = this.value.replace(/\D/g, '').slice(0, 10);
   let formatted = '';

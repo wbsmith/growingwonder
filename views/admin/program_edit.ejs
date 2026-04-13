@@ -9,26 +9,40 @@
       <a href="/programs/<%= program.id %>" target="_blank" class="btn btn-outline btn-sm">Preview Page</a>
     </p>
 
-    <!-- Hero Image -->
-    <h2 style="margin-bottom: 12px;">Hero Image</h2>
-    <div style="margin-bottom: 24px;">
-      <% if (program.heroImage) { %>
-        <div style="margin-bottom: 12px;">
-          <img src="<%= program.heroImage %>" style="max-width: 400px; border-radius: var(--radius); border: 1px solid #ddd;">
-        </div>
-      <% } %>
-      <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
-        <input type="file" id="heroFile" accept="image/*" style="font-size: 0.85rem;">
-        <button type="button" class="btn btn-green btn-sm" onclick="uploadHero()">Upload Hero</button>
-        <% if (program.heroImage) { %>
-          <form method="POST" action="/admin/programs/<%= program.id %>/hero" style="display:inline;">
-            <input type="hidden" name="url" value="">
-            <button type="submit" class="btn btn-danger btn-sm">Remove</button>
-          </form>
-        <% } %>
+    <!-- Hero Section -->
+    <h2 style="margin-bottom: 12px;">Hero</h2>
+    <form method="POST" action="/admin/programs/<%= program.id %>/hero" id="heroForm" style="margin-bottom: 24px; background: var(--sand); border-radius: var(--radius); padding: 20px;">
+      <div class="form-group">
+        <label>Title (defaults to program name)</label>
+        <input type="text" name="hero_title" value="<%= program.heroTitle || '' %>" placeholder="<%= program.name %>"
+          style="padding: 8px 12px; border: 1px solid #ccc; border-radius: var(--radius); width: 100%;">
       </div>
-      <div id="heroStatus" style="font-size: 0.85rem; color: var(--text-light); margin-top: 8px;"></div>
-    </div>
+      <div class="form-group">
+        <label>Subtitle (defaults to program description)</label>
+        <input type="text" name="hero_subtitle" value="<%= program.heroSubtitle || '' %>" placeholder="<%= program.description %>"
+          style="padding: 8px 12px; border: 1px solid #ccc; border-radius: var(--radius); width: 100%;">
+      </div>
+      <div class="form-group">
+        <label>Overlay Color <span style="font-weight:normal; color:var(--text-light);">(CSS color with alpha, e.g. rgba(44,74,46,0.75))</span></label>
+        <input type="text" name="hero_overlay" value="<%= program.heroOverlay || '' %>" placeholder="rgba(44,74,46,0.75)"
+          style="padding: 8px 12px; border: 1px solid #ccc; border-radius: var(--radius); width: 100%;">
+      </div>
+      <div style="margin-bottom: 12px;">
+        <% if (program.heroImage) { %>
+          <img src="<%= program.heroImage %>" style="max-width: 300px; border-radius: var(--radius); border: 1px solid #ddd; margin-bottom: 8px; display: block;">
+        <% } %>
+        <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+          <input type="file" id="heroFile" accept="image/*" style="font-size: 0.85rem;">
+          <button type="button" class="btn btn-outline btn-sm" onclick="uploadHeroImage()">Upload Image</button>
+          <% if (program.heroImage) { %>
+            <button type="button" class="btn btn-danger btn-sm" onclick="document.getElementById('heroUrlHidden').value=''; document.getElementById('heroForm').submit();">Remove Image</button>
+          <% } %>
+        </div>
+        <div id="heroStatus" style="font-size: 0.85rem; color: var(--text-light); margin-top: 8px;"></div>
+      </div>
+      <input type="hidden" name="url" id="heroUrlHidden" value="<%= program.heroImage || '' %>">
+      <button type="submit" class="btn btn-green btn-sm">Save Hero</button>
+    </form>
 
     <!-- Long Description -->
     <h2 style="margin-bottom: 12px;">Description</h2>
@@ -170,7 +184,7 @@ async function uploadToS3(file, presigned) {
   return presigned;
 }
 
-async function uploadHero() {
+async function uploadHeroImage() {
   const file = document.getElementById('heroFile').files[0];
   const status = document.getElementById('heroStatus');
   if (!file) { status.textContent = 'Select a file first.'; return; }
@@ -180,18 +194,9 @@ async function uploadHero() {
   try {
     const presigned = await getPresignedUrl(file.name, file.type);
     await uploadToS3(file, presigned);
-
-    // Save the hero URL
-    const form = document.createElement('form');
-    form.method = 'POST';
-    form.action = '/admin/programs/<%= program.id %>/hero';
-    const input = document.createElement('input');
-    input.type = 'hidden';
-    input.name = 'url';
-    input.value = presigned.publicUrl;
-    form.appendChild(input);
-    document.body.appendChild(form);
-    form.submit();
+    // Set the hidden URL field and submit the hero form
+    document.getElementById('heroUrlHidden').value = presigned.publicUrl;
+    document.getElementById('heroForm').submit();
   } catch (err) {
     status.textContent = 'Upload failed: ' + err.message;
   }

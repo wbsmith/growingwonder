@@ -1,10 +1,23 @@
 <aside class="admin-sidebar">
-  <div class="brand"><a href="/admin">World in Wonder</a></div>
+  <div class="brand"><a href="/admin"><%= site.name %></a></div>
   <nav>
     <a href="/admin" class="<%= active === 'dashboard' ? 'active' : '' %>">Dashboard</a>
     <a href="/admin/programs" class="<%= active === 'programs' ? 'active' : '' %>">Programs</a>
+
     <a href="/admin/enrollments" class="<%= active === 'enrollments' ? 'active' : '' %>">Enrollments</a>
+    <% if (active === 'enrollments') { %>
+      <a href="/admin/enrollments?tab=registrations" class="sub <%= typeof tab !== 'undefined' && tab === 'registrations' ? 'active' : '' %>">Registrations</a>
+      <a href="/admin/enrollments?tab=payments" class="sub <%= typeof tab !== 'undefined' && tab === 'payments' ? 'active' : '' %>">Payments</a>
+      <a href="/admin/enrollments?tab=rosters" class="sub <%= typeof tab !== 'undefined' && tab === 'rosters' ? 'active' : '' %>">Rosters</a>
+    <% } %>
+
     <a href="/admin/messages" class="<%= active === 'messages' ? 'active' : '' %>">Messages</a>
+    <% if (active === 'messages') { %>
+      <a href="/admin/messages?tab=confirmations" class="sub <%= typeof tab !== 'undefined' && tab === 'confirmations' ? 'active' : '' %>">Confirmations</a>
+      <a href="/admin/messages?tab=bulk" class="sub <%= typeof tab !== 'undefined' && tab === 'bulk' ? 'active' : '' %>">Bulk Send</a>
+      <a href="/admin/messages?tab=inquiries" class="sub <%= typeof tab !== 'undefined' && tab === 'inquiries' ? 'active' : '' %>">Inquiries</a>
+    <% } %>
+
     <div class="logout">
       <a href="/admin/logout">Log Out</a>
     </div>

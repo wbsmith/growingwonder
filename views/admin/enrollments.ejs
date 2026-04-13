@@ -2,15 +2,9 @@
 <link rel="stylesheet" href="/css/admin.css">
 
 <div class="admin-layout">
-  <%- include('_sidebar', { active: 'enrollments' }) %>
+  <%- include('_sidebar', { active: 'enrollments', tab: tab }) %>
   <main class="admin-main">
-    <h1>Enrollments</h1>
-
-    <%- include('_tabs', { tabs: [
-      { label: 'Registrations', href: '/admin/enrollments?tab=registrations' + (selectedProgramId ? '&program=' + selectedProgramId : ''), active: tab === 'registrations' },
-      { label: 'Payments', href: '/admin/enrollments?tab=payments' + (selectedProgramId ? '&program=' + selectedProgramId : ''), active: tab === 'payments' },
-      { label: 'Rosters', href: '/admin/enrollments?tab=rosters' + (selectedProgramId ? '&program=' + selectedProgramId : ''), active: tab === 'rosters' },
-    ]}) %>
+    <h1><%= tab === 'payments' ? 'Payments' : tab === 'rosters' ? 'Rosters' : 'Registrations' %></h1>
 
     <!-- Program filter (shared across tabs) -->
     <form method="GET" action="/admin/enrollments" class="inline-form" style="margin-bottom: 24px;">

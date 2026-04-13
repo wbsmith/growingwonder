@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const db = require('../db/dynamo');
+const site = require('../lib/site');
 
 const asyncHandler = fn => (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
 
@@ -80,10 +81,10 @@ Enrolled dates:
 
 We're excited to have ${childListStr} join us. Please arrive by 8:45 AM on the first day. Don't forget sunscreen, a water bottle, and a sense of adventure!
 
-If you have any questions, reply to this email or call us at 415-272-2241.
+If you have any questions, reply to this email or call us at ${site.phone}.
 
 Warm regards,
-World in Wonder Team`;
+${site.name} Team`;
 
   try {
     await db.createRegistration({

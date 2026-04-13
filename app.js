@@ -2,6 +2,7 @@ const express = require('express');
 const path = require('path');
 const { loadEnv } = require('./lib/env');
 const { setupSession } = require('./lib/session');
+const site = require('./lib/site');
 
 loadEnv();
 
@@ -18,6 +19,7 @@ setupSession(app);
 
 app.use((req, res, next) => {
   res.locals.flash = req.session.flash;
+  res.locals.site = site;
   delete req.session.flash;
   next();
 });

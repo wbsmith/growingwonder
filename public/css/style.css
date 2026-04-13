@@ -444,17 +444,24 @@ a:hover { color: var(--green-dark); }
 }
 .program-description {
   font-size: 1.05rem;
-  line-height: 1.8;
+  line-height: 1.7;
   color: var(--text);
   margin-bottom: 40px;
 }
 .program-description .ql-align-center { text-align: center; }
 .program-description .ql-align-right { text-align: right; }
 .program-description .ql-align-justify { text-align: justify; }
-.program-description h2 { font-size: 1.6rem; margin: 24px 0 12px; color: var(--green-dark); }
-.program-description h3 { font-size: 1.3rem; margin: 20px 0 10px; color: var(--green-dark); }
-.program-description p { margin-bottom: 12px; }
-.program-description ul, .program-description ol { margin: 0 0 12px 24px; }
+.program-description h2 { font-size: 1.6rem; margin: 24px 0 8px; color: var(--green-dark); }
+.program-description h3 { font-size: 1.3rem; margin: 20px 0 6px; color: var(--green-dark); }
+.program-description p { margin-bottom: 4px; }
+.program-description p:empty, .program-description p br:only-child { margin-bottom: 12px; }
+.program-description ul, .program-description ol { margin: 0 0 8px 24px; list-style: disc; }
+.program-description ol { list-style: decimal; }
+.program-description li { margin-bottom: 2px; }
+/* Quill uses data-list attributes instead of ul/ol */
+.program-description li[data-list="bullet"] { list-style: disc; }
+.program-description li[data-list="ordered"] { list-style: decimal; }
+.program-description .ql-ui { display: none; }
 .program-description a { color: var(--green-mid); text-decoration: underline; }
 .program-gallery {
   display: grid;

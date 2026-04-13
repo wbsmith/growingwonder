@@ -31,6 +31,19 @@
 }
 .admin-sidebar nav a:hover { background: rgba(255,255,255,0.1); color: var(--white); }
 .admin-sidebar nav a.active { background: rgba(255,255,255,0.15); color: var(--white); font-weight: 700; }
+.admin-sidebar nav a.sub {
+  padding-left: 36px;
+  font-size: 0.82rem;
+  color: rgba(255,255,255,0.55);
+  border-left: 2px solid transparent;
+}
+.admin-sidebar nav a.sub:hover { color: rgba(255,255,255,0.85); }
+.admin-sidebar nav a.sub.active {
+  color: var(--white);
+  border-left-color: var(--white);
+  background: rgba(255,255,255,0.08);
+  font-weight: 600;
+}
 .admin-sidebar .logout {
   margin-top: 32px;
   padding-top: 16px;

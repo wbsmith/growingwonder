@@ -1,7 +1,7 @@
 <%- include('layout_head', { title: program.name }) %>
 
 <nav class="site-nav">
-  <a href="/" class="logo">World in Wonder</a>
+  <a href="/" class="logo"><%= site.name %></a>
   <div class="nav-links">
     <a href="/#programs">Programs</a>
     <a href="/register">Register</a>
@@ -10,10 +10,11 @@
 </nav>
 
 <!-- Hero -->
-<section class="program-hero" <% if (program.heroImage) { %>style="background-image: linear-gradient(rgba(44,74,46,0.7), rgba(44,74,46,0.85)), url('<%= program.heroImage %>');"<% } %>>
+<% const overlay = program.heroOverlay || 'rgba(44,74,46,0.75)'; %>
+<section class="program-hero" <% if (program.heroImage) { %>style="background-image: linear-gradient(<%= overlay %>, <%= overlay %>), url('<%= program.heroImage %>');"<% } %>>
   <div class="program-hero-content">
-    <h1><%= program.name %></h1>
-    <p><%= program.description %></p>
+    <h1><%= program.heroTitle || program.name %></h1>
+    <p><%= program.heroSubtitle || program.description %></p>
     <a href="/register?program=<%= program.id %>" class="btn btn-primary">Register Now</a>
   </div>
 </section>
@@ -70,13 +71,6 @@
   </div>
 </div>
 
-<footer class="site-footer">
-  <p>World in Wonder &mdash; Nature Programs for Young Explorers</p>
-  <p>Roy's Redwoods, Deer Park, Wall Hill &mdash; Fairfax, CA</p>
-  <div class="footer-links">
-    <a href="tel:+14152722241">415-272-2241</a>
-    <a href="mailto:info@worldinwonder.com">Email Us</a>
-  </div>
-</footer>
+<%- include('_footer') %>
 
 <%- include('layout_foot') %>
