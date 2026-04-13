@@ -448,6 +448,14 @@ a:hover { color: var(--green-dark); }
   color: var(--text);
   margin-bottom: 40px;
 }
+.program-description .ql-align-center { text-align: center; }
+.program-description .ql-align-right { text-align: right; }
+.program-description .ql-align-justify { text-align: justify; }
+.program-description h2 { font-size: 1.6rem; margin: 24px 0 12px; color: var(--green-dark); }
+.program-description h3 { font-size: 1.3rem; margin: 20px 0 10px; color: var(--green-dark); }
+.program-description p { margin-bottom: 12px; }
+.program-description ul, .program-description ol { margin: 0 0 12px 24px; }
+.program-description a { color: var(--green-mid); text-decoration: underline; }
 .program-gallery {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
