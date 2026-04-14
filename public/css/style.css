@@ -63,6 +63,13 @@ a:hover { color: var(--green-dark); }
   font-size: 1.4rem;
   font-weight: 700;
   letter-spacing: 0.5px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.logo-img {
+  height: 40px;
+  width: auto;
 }
 .site-nav .nav-links { display: flex; gap: 28px; }
 .site-nav .nav-links a {
