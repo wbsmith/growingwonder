@@ -95,6 +95,18 @@
           <label>Message</label>
           <textarea name="body" rows="10" required style="width: 100%; padding: 12px; border: 1px solid #ccc; border-radius: var(--radius); font-family: inherit; font-size: 0.95rem;" placeholder="Type your message..."></textarea>
         </div>
+        <!-- Attachments -->
+        <div style="margin-bottom: 16px; padding: 16px; background: var(--white); border-radius: var(--radius); border: 1px solid #ddd;">
+          <label style="font-weight: 700; font-size: 0.9rem; display: block; margin-bottom: 8px;">Attachments</label>
+          <div id="bulkAttachList"></div>
+          <div style="display: flex; gap: 8px; align-items: center;">
+            <input type="file" id="bulkAttachFile" style="font-size: 0.85rem;">
+            <button type="button" class="btn btn-outline btn-sm" onclick="addBulkAttachment()">Add</button>
+          </div>
+          <div id="bulkAttachStatus" style="font-size: 0.85rem; color: var(--text-light); margin-top: 4px;"></div>
+        </div>
+        <input type="hidden" name="attachment_keys" id="bulkAttachKeys" value="">
+
         <button type="submit" class="btn btn-green" id="sendBtn" disabled
           onclick="return confirm('Send this email to ' + document.getElementById('recipientCount').textContent + ' recipient(s)?')">
           Send Email
@@ -135,6 +147,44 @@
         document.getElementById('recipientHidden').value = data.emails.join(',');
         document.getElementById('recipientInfo').style.display = 'block';
         document.getElementById('sendBtn').disabled = data.count === 0;
+      }
+
+      // Bulk attachments
+      const bulkAttachments = []; // [{filename, key, contentType}]
+      async function addBulkAttachment() {
+        const file = document.getElementById('bulkAttachFile').files[0];
+        const status = document.getElementById('bulkAttachStatus');
+        if (!file) { status.textContent = 'Select a file first.'; return; }
+        status.textContent = 'Uploading...';
+        try {
+          const res = await fetch('/admin/messages/bulk/upload-url', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ filename: file.name, contentType: file.type }),
+          });
+          const presigned = await res.json();
+          await fetch(presigned.uploadUrl, { method: 'PUT', headers: { 'Content-Type': file.type }, body: file });
+          bulkAttachments.push({ filename: file.name, key: presigned.key, contentType: file.type });
+          renderBulkAttachments();
+          document.getElementById('bulkAttachFile').value = '';
+          status.textContent = '';
+        } catch (err) {
+          status.textContent = 'Upload failed: ' + err.message;
+        }
+      }
+      function renderBulkAttachments() {
+        const list = document.getElementById('bulkAttachList');
+        list.innerHTML = bulkAttachments.map((a, i) =>
+          '<div style="display:flex;align-items:center;gap:8px;padding:4px 0;font-size:0.85rem;">' +
+          '<span>' + a.filename + '</span>' +
+          '<a href="#" onclick="removeBulkAttachment(' + i + '); return false;" style="color:var(--red);font-size:0.8rem;">Remove</a>' +
+          '</div>'
+        ).join('');
+        document.getElementById('bulkAttachKeys').value = JSON.stringify(bulkAttachments);
+      }
+      function removeBulkAttachment(idx) {
+        bulkAttachments.splice(idx, 1);
+        renderBulkAttachments();
       }
       </script>
 
