@@ -200,22 +200,24 @@ async function createRegistration(data) {
     });
   }
 
-  // Also create the email queue entry
-  const emailId = ulid();
-  const emailItem = {
-    id: emailId,
-    registrationId: id,
-    toAddr: data.parentEmail,
-    subject: data.emailSubject,
-    body: data.emailBody,
-    status: 'draft',
-    sentAt: null,
-    createdAt: now,
-    parentName: data.parentName,
-    childName: data.children.map(c => c.name).join(', '),
-    programName: data.programName,
-  };
-  transactItems.push({ Put: { TableName: T.emails, Item: emailItem } });
+  // Create email queue entry only if there's a subject (skip for imports)
+  if (data.emailSubject && data.parentEmail) {
+    const emailId = ulid();
+    const emailItem = {
+      id: emailId,
+      registrationId: id,
+      toAddr: data.parentEmail,
+      subject: data.emailSubject,
+      body: data.emailBody,
+      status: 'draft',
+      sentAt: null,
+      createdAt: now,
+      parentName: data.parentName,
+      childName: data.children.map(c => c.name).join(', '),
+      programName: data.programName,
+    };
+    transactItems.push({ Put: { TableName: T.emails, Item: emailItem } });
+  }
 
   await client.send(new TransactWriteCommand({ TransactItems: transactItems }));
   return id;

@@ -85,16 +85,31 @@
           <div id="recipientList" style="font-size: 0.8rem; color: var(--text-light); margin-top: 4px; max-height: 100px; overflow-y: auto;"></div>
         </div>
       </div>
-      <form method="POST" action="/admin/messages/bulk/send">
+      <form method="POST" action="/admin/messages/bulk/send" id="bulkSendForm">
         <input type="hidden" name="recipients" id="recipientHidden">
+        <input type="hidden" name="body" id="bulkBodyHidden">
+        <input type="hidden" name="body_format" value="html">
+        <input type="hidden" name="attachment_keys" id="bulkAttachKeys" value="">
+
+        <!-- Manual recipients -->
+        <div class="form-group">
+          <label>Additional Recipients <span style="font-weight:normal; color:var(--text-light);">(comma-separated emails)</span></label>
+          <input type="text" id="manualRecipients" placeholder="parent@example.com, another@example.com"
+            style="padding: 10px 14px; border: 1px solid #ccc; border-radius: var(--radius); width: 100%;">
+        </div>
+
         <div class="form-group">
           <label>Subject</label>
           <input type="text" name="subject" required style="padding: 10px 14px; border: 1px solid #ccc; border-radius: var(--radius); width: 100%;">
         </div>
+
+        <!-- Rich text editor -->
         <div class="form-group">
           <label>Message</label>
-          <textarea name="body" rows="10" required style="width: 100%; padding: 12px; border: 1px solid #ccc; border-radius: var(--radius); font-family: inherit; font-size: 0.95rem;" placeholder="Type your message..."></textarea>
+          <link href="https://cdn.jsdelivr.net/npm/quill@2/dist/quill.snow.css" rel="stylesheet">
+          <div id="bulkEditor" style="min-height: 200px; background: var(--white);"></div>
         </div>
+
         <!-- Attachments -->
         <div style="margin-bottom: 16px; padding: 16px; background: var(--white); border-radius: var(--radius); border: 1px solid #ddd;">
           <label style="font-weight: 700; font-size: 0.9rem; display: block; margin-bottom: 8px;">Attachments</label>
@@ -105,15 +120,49 @@
           </div>
           <div id="bulkAttachStatus" style="font-size: 0.85rem; color: var(--text-light); margin-top: 4px;"></div>
         </div>
-        <input type="hidden" name="attachment_keys" id="bulkAttachKeys" value="">
 
-        <button type="submit" class="btn btn-green" id="sendBtn" disabled
-          onclick="return confirm('Send this email to ' + document.getElementById('recipientCount').textContent + ' recipient(s)?')">
+        <button type="submit" class="btn btn-green" id="sendBtn">
           Send Email
         </button>
       </form>
+      <script src="https://cdn.jsdelivr.net/npm/quill@2/dist/quill.js"></script>
       <script>
       const programWeeks = <%- JSON.stringify(programWeeks) %>;
+
+      // Quill editor for bulk send
+      const bulkQuill = new Quill('#bulkEditor', {
+        theme: 'snow',
+        modules: {
+          toolbar: [
+            [{ 'header': [2, 3, false] }],
+            ['bold', 'italic', 'underline'],
+            [{ 'color': [] }],
+            [{ 'list': 'ordered' }, { 'list': 'bullet' }],
+            ['link'],
+            ['clean']
+          ]
+        },
+        placeholder: 'Type your message...'
+      });
+
+      // Merge manual + loaded recipients and set body on submit
+      document.getElementById('bulkSendForm').addEventListener('submit', function() {
+        // Set body from Quill
+        const html = bulkQuill.root.innerHTML;
+        document.getElementById('bulkBodyHidden').value = (html === '<p><br></p>') ? '' : html;
+
+        // Merge manual recipients
+        const loaded = (document.getElementById('recipientHidden').value || '').split(',').filter(Boolean);
+        const manual = (document.getElementById('manualRecipients').value || '').split(',').map(e => e.trim()).filter(Boolean);
+        const all = [...new Set([...loaded, ...manual])];
+        document.getElementById('recipientHidden').value = all.join(',');
+
+        // Update count for confirm
+        if (all.length === 0) {
+          alert('No recipients specified.');
+          return false;
+        }
+      });
       function updateScopeUI() {
         const scope = document.getElementById('scope').value;
         document.getElementById('programGroup').style.display = (scope === 'all') ? 'none' : '';

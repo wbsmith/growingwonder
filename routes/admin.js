@@ -267,6 +267,128 @@ router.get('/enrollments/csv', requireAuth, asyncHandler(async (req, res) => {
   res.send(header + '\n' + csvRows.join('\n'));
 }));
 
+// Import
+router.post('/enrollments/import', requireAuth, express.raw({ type: 'multipart/form-data', limit: '2mb' }), asyncHandler(async (req, res) => {
+  // Parse multipart form to get the CSV content
+  const contentType = req.headers['content-type'] || '';
+  const boundaryMatch = contentType.match(/boundary=(.+)/);
+  if (!boundaryMatch) {
+    req.session.flash = { type: 'error', msg: 'Invalid upload.' };
+    return res.redirect(303, '/admin/enrollments?tab=import');
+  }
+  const body = req.body.toString('utf8');
+  const parts = body.split('--' + boundaryMatch[1]);
+  let csvContent = '';
+  for (const part of parts) {
+    if (part.includes('filename=') && part.includes('.csv')) {
+      const headerEnd = part.indexOf('\r\n\r\n');
+      if (headerEnd !== -1) csvContent = part.slice(headerEnd + 4).trim();
+      // Remove trailing boundary markers
+      if (csvContent.endsWith('--')) csvContent = csvContent.slice(0, -2).trim();
+    }
+  }
+
+  if (!csvContent) {
+    req.session.flash = { type: 'error', msg: 'No CSV data found.' };
+    return res.redirect(303, '/admin/enrollments?tab=import');
+  }
+
+  const lines = csvContent.split('\n').map(l => l.trim()).filter(Boolean);
+  if (lines.length < 2) {
+    req.session.flash = { type: 'error', msg: 'CSV must have a header row and at least one data row.' };
+    return res.redirect(303, '/admin/enrollments?tab=import');
+  }
+
+  // Parse header
+  const header = lines[0].toLowerCase().split(',').map(h => h.trim().replace(/"/g, ''));
+  const colIdx = (name) => header.findIndex(h => h.includes(name));
+  const iName = colIdx('parent');
+  const iEmail = colIdx('email');
+  const iPhone = colIdx('phone');
+  const iChild = colIdx('child');
+  const iDob = colIdx('dob');
+  const iAllergy = colIdx('allerg');
+  const iNotes = colIdx('note');
+
+  // Group rows by parent email (or name if no email)
+  const grouped = {};
+  for (let i = 1; i < lines.length; i++) {
+    const cols = lines[i].match(/(".*?"|[^,]+)/g)?.map(c => c.trim().replace(/^"|"$/g, '')) || [];
+    const parentName = (iName >= 0 ? cols[iName] : '') || '';
+    const email = (iEmail >= 0 ? cols[iEmail] : '') || '';
+    const phone = (iPhone >= 0 ? cols[iPhone] : '') || '';
+    const childName = (iChild >= 0 ? cols[iChild] : '') || '';
+    const dob = (iDob >= 0 ? cols[iDob] : '') || '';
+    const allergies = (iAllergy >= 0 ? cols[iAllergy] : '') || '';
+    const notes = (iNotes >= 0 ? cols[iNotes] : '') || '';
+
+    const key = email || parentName;
+    if (!key) continue;
+    if (!grouped[key]) {
+      grouped[key] = { parentName, email, phone, notes, children: [] };
+    }
+    if (childName) {
+      grouped[key].children.push({ name: childName, dob: dob || null, allergies: allergies || null });
+    }
+    if (notes && !grouped[key].notes) grouped[key].notes = notes;
+  }
+
+  let count = 0;
+  for (const rec of Object.values(grouped)) {
+    if (rec.children.length === 0) {
+      rec.children.push({ name: 'Unknown', dob: null, allergies: null });
+    }
+    await db.createRegistration({
+      programId: 'imported',
+      parentName: rec.parentName,
+      parentEmail: rec.email,
+      parentPhone: rec.phone,
+      notes: rec.notes || null,
+      children: rec.children.map(c => ({
+        name: c.name, dob: c.dob || '', healthcareProvider: null, allergies: c.allergies,
+      })),
+      selectedDates: [],
+      emailSubject: null,
+      emailBody: null,
+      programName: 'Imported',
+    });
+    count++;
+  }
+
+  req.session.flash = { type: 'success', msg: `Imported ${count} contact(s).` };
+  res.redirect(303, '/admin/enrollments?tab=import');
+}));
+
+router.post('/enrollments/import-manual', requireAuth, asyncHandler(async (req, res) => {
+  const { parent_name, email, phone, child_names, child_dobs, allergies, notes } = req.body;
+  if (!parent_name || !child_names) {
+    req.session.flash = { type: 'error', msg: 'Parent name and at least one child name are required.' };
+    return res.redirect(303, '/admin/enrollments?tab=import');
+  }
+
+  const names = child_names.split(',').map(n => n.trim()).filter(Boolean);
+  const dobs = (child_dobs || '').split(',').map(d => d.trim());
+  const children = names.map((name, i) => ({
+    name, dob: dobs[i] || '', healthcareProvider: null, allergies: allergies || null,
+  }));
+
+  await db.createRegistration({
+    programId: 'imported',
+    parentName: parent_name,
+    parentEmail: email || '',
+    parentPhone: phone || '',
+    notes: notes || null,
+    children,
+    selectedDates: [],
+    emailSubject: null,
+    emailBody: null,
+    programName: 'Imported',
+  });
+
+  req.session.flash = { type: 'success', msg: `Contact "${parent_name}" added.` };
+  res.redirect(303, '/admin/enrollments?tab=import');
+}));
+
 // Rosters
 router.get('/roster', requireAuth, asyncHandler(async (req, res) => {
   const programId = req.query.program;
@@ -427,7 +549,7 @@ router.post('/messages/bulk/recipients', requireAuth, asyncHandler(async (req, r
 }));
 
 router.post('/messages/bulk/send', requireAuth, asyncHandler(async (req, res) => {
-  const { subject, body, recipients, attachment_keys } = req.body;
+  const { subject, body, recipients, attachment_keys, body_format } = req.body;
   if (!subject || !body || !recipients) { req.session.flash = { type: 'error', msg: 'Subject, body, and recipients are required.' }; return res.redirect(303, '/admin/messages?tab=bulk'); }
   const emailList = recipients.split(',').map(e => e.trim()).filter(Boolean);
   if (emailList.length === 0) { req.session.flash = { type: 'error', msg: 'No recipients.' }; return res.redirect(303, '/admin/messages?tab=bulk'); }
@@ -450,7 +572,7 @@ router.post('/messages/bulk/send', requireAuth, asyncHandler(async (req, res) =>
         attachments.push({ filename: att.filename, content: Buffer.concat(chunks), contentType: att.contentType });
       }
     }
-    const count = await mailer.sendBulk(emailList, subject, body, 'info', attachments);
+    const count = await mailer.sendBulk(emailList, subject, body, 'info', attachments, body_format || 'text');
     req.session.flash = { type: 'success', msg: `Email sent to ${count} recipient(s).` };
   } catch (err) {
     console.error('Bulk email error:', err);
