@@ -1,4 +1,9 @@
-<%- include('layout_head', { title: 'About' }) %>
+<%- include('layout_head', {
+  title: 'About',
+  ogDescription: page.heroSubtitle || 'Meet the founder of ' + site.name,
+  ogPath: '/about',
+  ogImage: page.heroImage || null
+}) %>
 
 <%- include('_nav') %>
 
