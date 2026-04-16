@@ -253,7 +253,7 @@ a:hover { color: var(--green-dark); }
   margin-bottom: 32px;
 }
 .form-group {
-  margin-bottom: 20px;
+  margin-bottom: 14px;
 }
 .form-group label {
   display: block;
@@ -296,7 +296,7 @@ a:hover { color: var(--green-dark); }
 .form-row {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 20px;
+  gap: 14px;
 }
 
 /* ---------- CALENDAR ---------- */
