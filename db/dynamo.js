@@ -29,7 +29,25 @@ const T = {
 
 async function getAllPrograms() {
   const { Items } = await client.send(new ScanCommand({ TableName: T.programs }));
-  return (Items || []).sort((a, b) => a.id.localeCompare(b.id));
+  const programs = (Items || []).sort((a, b) => a.id.localeCompare(b.id));
+  // Backfill slugs for programs created before slug support
+  for (const p of programs) {
+    if (!p.slug) {
+      p.slug = slugify(p.name);
+      await client.send(new UpdateCommand({
+        TableName: T.programs,
+        Key: { id: p.id },
+        UpdateExpression: 'SET slug = :s',
+        ExpressionAttributeValues: { ':s': p.slug },
+      }));
+    }
+  }
+  return programs;
+}
+
+async function getProgramBySlug(slug) {
+  const programs = await getAllPrograms();
+  return programs.find(p => p.slug === slug) || null;
 }
 
 async function getProgram(id) {
@@ -39,15 +57,19 @@ async function getProgram(id) {
   return Item || null;
 }
 
+function slugify(text) {
+  return text.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+}
+
 async function createProgram(name, description) {
   const id = 'prog_' + ulid();
   await client.send(new PutCommand({
     TableName: T.programs,
     Item: {
-      id, name, description: description || null,
+      id, name, slug: slugify(name), description: description || null,
       longDescription: null,
       heroImage: null,
-      media: [],  // [{type:'image'|'video', url, key, caption}]
+      media: [],
       createdAt: new Date().toISOString(),
     },
     ConditionExpression: 'attribute_not_exists(id)',
@@ -496,7 +518,7 @@ async function savePage(slug, data) {
 }
 
 module.exports = {
-  getAllPrograms, getProgram, createProgram, deleteProgram,
+  getAllPrograms, getProgram, getProgramBySlug, createProgram, deleteProgram,
   updateProgramDescription, updateProgramHero, addProgramMedia, removeProgramMedia,
   getDatesByProgram, addDates, removeDate,
   createRegistration, getEnrollments, getRegistrationsByProgram,

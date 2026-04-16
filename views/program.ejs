@@ -1,7 +1,7 @@
 <%- include('layout_head', {
   title: program.name,
   ogDescription: program.description,
-  ogPath: '/programs/' + program.id,
+  ogPath: '/programs/' + (program.slug || program.id),
   ogImage: program.heroImage || null
 }) %>
 

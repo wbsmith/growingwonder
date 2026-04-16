@@ -6,7 +6,7 @@
   <main class="admin-main">
     <h1>Edit: <%= program.name %></h1>
     <p style="margin-bottom: 24px;">
-      <a href="/programs/<%= program.id %>" target="_blank" class="btn btn-outline btn-sm">Preview Page</a>
+      <a href="/programs/<%= program.slug || program.id %>" target="_blank" class="btn btn-outline btn-sm">Preview Page</a>
     </p>
 
     <!-- Hero Section -->

@@ -24,9 +24,15 @@ router.get('/about', asyncHandler(async (req, res) => {
   res.render('about', { page });
 }));
 
-router.get('/programs/:id', asyncHandler(async (req, res) => {
-  const program = await db.getProgram(req.params.id);
+router.get('/programs/:slug', asyncHandler(async (req, res) => {
+  // Try slug first, fall back to ID for backward compat
+  let program = await db.getProgramBySlug(req.params.slug);
+  if (!program) program = await db.getProgram(req.params.slug);
   if (!program) return res.status(404).send('Program not found');
+  // Redirect old ID URLs to slug URLs
+  if (req.params.slug !== program.slug) {
+    return res.redirect(301, '/programs/' + program.slug);
+  }
   const programs = await db.getAllPrograms();
   res.render('program', { program, programs });
 }));
