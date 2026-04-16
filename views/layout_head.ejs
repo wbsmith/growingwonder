@@ -3,9 +3,10 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title><%= typeof title !== 'undefined' ? title + ' — ' : '' %><%= site.name %></title>
+  <% const pageTitle = (typeof title !== 'undefined' && title) ? title + ' — ' + site.name : site.name; %>
+  <title><%= pageTitle %></title>
   <meta name="description" content="<%= typeof ogDescription !== 'undefined' && ogDescription ? ogDescription : site.tagline %>">
-  <meta property="og:title" content="<%= typeof title !== 'undefined' ? title + ' — ' : '' %><%= site.name %>">
+  <meta property="og:title" content="<%= typeof ogTitle !== 'undefined' && ogTitle ? ogTitle : pageTitle %>">
   <meta property="og:description" content="<%= typeof ogDescription !== 'undefined' && ogDescription ? ogDescription : site.tagline %>">
   <meta property="og:type" content="website">
   <meta property="og:url" content="https://www.worldinwonder.com<%= typeof ogPath !== 'undefined' ? ogPath : '' %>">
