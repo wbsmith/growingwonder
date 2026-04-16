@@ -30,7 +30,7 @@
         <div class="icon"><%= icons[i] || '🌿' %></div>
         <h3><%= p.name %></h3>
         <p><%= p.description %></p>
-        <a href="/register?program=<%= p.id %>" class="btn btn-green" onclick="event.stopPropagation();" style="position: relative; z-index: 2;">Sign Up</a>
+        <a href="/register/<%= p.slug || p.id %>" class="btn btn-green" onclick="event.stopPropagation();" style="position: relative; z-index: 2;">Sign Up</a>
       </div>
     <% }) %>
   </div>

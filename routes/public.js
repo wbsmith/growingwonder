@@ -37,10 +37,28 @@ router.get('/programs/:slug', asyncHandler(async (req, res) => {
   res.render('program', { program, programs });
 }));
 
-router.get('/register', asyncHandler(async (req, res) => {
+router.get('/register/thanks', (req, res) => {
+  res.render('thanks');
+});
+
+router.get('/register/:slug?', asyncHandler(async (req, res) => {
   const programs = await db.getAllPrograms();
-  const programId = req.query.program || null;
-  res.render('register', { programs, selectedProgramId: programId });
+  let selectedProgramId = null;
+
+  if (req.params.slug) {
+    // /register/nature-camps
+    const program = programs.find(p => p.slug === req.params.slug);
+    if (program) selectedProgramId = program.id;
+  } else if (req.query.program) {
+    // /register?program=prog_xxx (backward compat) → redirect to slug URL
+    const program = programs.find(p => p.id === req.query.program);
+    if (program && program.slug) {
+      return res.redirect(301, '/register/' + program.slug);
+    }
+    selectedProgramId = req.query.program;
+  }
+
+  res.render('register', { programs, selectedProgramId });
 }));
 
 router.post('/register', asyncHandler(async (req, res) => {
@@ -49,35 +67,35 @@ router.post('/register', asyncHandler(async (req, res) => {
     notes, selected_dates,
   } = req.body;
 
+  // Look up program early for slug-based redirects
+  const program = program_id ? await db.getProgram(program_id) : null;
+  const regUrl = program && program.slug ? '/register/' + program.slug : '/register';
+
   const rawChildren = req.body.children || {};
   const children = Object.values(rawChildren).filter(c => c.name && c.dob);
 
   if (!program_id || !parent_name || !parent_email || !parent_phone ||
       children.length === 0 || !selected_dates) {
     req.session.flash = { type: 'error', msg: 'Please fill in all required fields, add at least one child, and select dates.' };
-    return res.redirect(303, '/register?program=' + (program_id || ''));
+    return res.redirect(303, regUrl);
   }
 
-  // selected_dates are now date strings: "2026-06-15,2026-06-16,..."
   const dateList = selected_dates.split(',').map(d => d.trim()).filter(Boolean);
   if (dateList.length === 0) {
     req.session.flash = { type: 'error', msg: 'Please select at least one date.' };
-    return res.redirect(303, '/register?program=' + program_id);
+    return res.redirect(303, regUrl);
   }
 
-  // Server-side validation
   const emailRe = /^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$/;
   const phoneDigits = parent_phone.replace(/\D/g, '');
   if (!emailRe.test(parent_email)) {
     req.session.flash = { type: 'error', msg: 'Please enter a valid email address.' };
-    return res.redirect(303, '/register?program=' + program_id);
+    return res.redirect(303, regUrl);
   }
   if (phoneDigits.length !== 10) {
     req.session.flash = { type: 'error', msg: 'Please enter a valid 10-digit phone number.' };
-    return res.redirect(303, '/register?program=' + program_id);
+    return res.redirect(303, regUrl);
   }
-
-  const program = await db.getProgram(program_id);
 
   // Compose confirmation email
   const dateListStr = dateList.sort().map(d => {
@@ -129,13 +147,9 @@ ${site.name} Team`;
   } catch (err) {
     console.error('Registration error:', err);
     req.session.flash = { type: 'error', msg: 'Something went wrong. Please try again.' };
-    res.redirect(303, '/register?program=' + program_id);
+    res.redirect(303, regUrl);
   }
 }));
-
-router.get('/register/thanks', (req, res) => {
-  res.render('thanks');
-});
 
 router.post('/inquiry', asyncHandler(async (req, res) => {
   const { name, email, phone, subject, message } = req.body;

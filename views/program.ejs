@@ -13,7 +13,7 @@
   <div class="program-hero-content">
     <h1><%= program.heroTitle || program.name %></h1>
     <p><%= program.heroSubtitle || program.description %></p>
-    <a href="/register?program=<%= program.id %>" class="btn btn-primary">Register Now</a>
+    <a href="/register/<%= program.slug || program.id %>" class="btn btn-primary">Register Now</a>
   </div>
 </section>
 
@@ -64,7 +64,7 @@
   <% } %>
 
   <div class="program-cta">
-    <a href="/register?program=<%= program.id %>" class="btn btn-green">Register for <%= program.name %></a>
+    <a href="/register/<%= program.slug || program.id %>" class="btn btn-green">Register for <%= program.name %></a>
     <a href="/#programs" class="btn btn-outline" style="margin-left: 12px;">All Programs</a>
   </div>
 </div>
