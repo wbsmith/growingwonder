@@ -54,13 +54,10 @@
     <!-- Registration Description -->
     <h2 style="margin-bottom: 12px;">Registration Description</h2>
     <p style="font-size: 0.85rem; color: var(--text-light); margin-bottom: 8px;">Short summary shown on the registration page when this program is selected.</p>
-    <form method="POST" action="/admin/programs/<%= program.id %>/reg-description" style="margin-bottom: 32px;">
-      <div class="form-group">
-        <textarea name="registration_description" rows="3"
-          style="width: 100%; padding: 12px; border: 1px solid #ccc; border-radius: var(--radius); font-family: inherit; font-size: 0.95rem;"
-          placeholder="A brief description shown during registration..."><%= program.registrationDescription || '' %></textarea>
-      </div>
-      <button type="submit" class="btn btn-green btn-sm">Save Registration Description</button>
+    <form method="POST" action="/admin/programs/<%= program.id %>/reg-description" id="regDescForm" style="margin-bottom: 32px;">
+      <div id="regDescEditor" style="min-height: 120px; background: var(--white);"></div>
+      <input type="hidden" name="registration_description" id="regDescHidden">
+      <button type="submit" class="btn btn-green btn-sm" style="margin-top: 12px;">Save Registration Description</button>
     </form>
 
     <!-- Long Description -->
@@ -137,6 +134,34 @@
       }
       const html = quill.root.innerHTML;
       document.getElementById('descHidden').value = (html === '<p><br></p>') ? '' : html;
+    });
+
+    // Registration description editor
+    let regDescContent = <%- JSON.stringify(program.registrationDescription || '') %>;
+    if (regDescContent && !regDescContent.includes('<')) {
+      regDescContent = regDescContent.split(/\n+/).filter(Boolean).map(p => '<p>' + p + '</p>').join('');
+    }
+    document.getElementById('regDescEditor').innerHTML = regDescContent;
+
+    const regDescQuill = new Quill('#regDescEditor', {
+      theme: 'snow',
+      modules: {
+        toolbar: [
+          [{ 'header': [2, 3, false] }],
+          ['bold', 'italic', 'underline'],
+          [{ 'color': [] }],
+          [{ 'align': [] }, { 'align': 'center' }, { 'align': 'right' }],
+          [{ 'list': 'ordered' }, { 'list': 'bullet' }],
+          ['link'],
+          ['clean']
+        ]
+      },
+      placeholder: 'Short description shown during registration...'
+    });
+
+    document.getElementById('regDescForm').addEventListener('submit', function() {
+      const html = regDescQuill.root.innerHTML;
+      document.getElementById('regDescHidden').value = (html === '<p><br></p>') ? '' : html;
     });
     </script>
 

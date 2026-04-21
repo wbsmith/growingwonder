@@ -17,7 +17,7 @@
       </select>
     </div>
 
-    <div id="programDescription" style="display: none; padding: 12px 16px; background: var(--sand); border-radius: var(--radius); margin-bottom: 14px; font-size: 0.9rem; color: var(--text); line-height: 1.5;"></div>
+    <div id="programDescription" class="program-description" style="display: none; padding: 12px 16px; background: var(--sand); border-radius: var(--radius); margin-bottom: 14px; font-size: 0.9rem; color: var(--text); line-height: 1.5;"></div>
 
     <div class="calendar-container" id="calendarContainer">
       <h3>Select Your Dates</h3>
@@ -148,7 +148,7 @@ document.getElementById('waiverModal').addEventListener('click', function(e) {
   function showDesc() {
     const desc = programData[sel.value];
     if (desc) {
-      descEl.textContent = desc;
+      descEl.innerHTML = desc;
       descEl.style.display = 'block';
     } else {
       descEl.style.display = 'none';
