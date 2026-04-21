@@ -51,6 +51,18 @@
       <button type="submit" class="btn btn-green btn-sm">Save Hero</button>
     </form>
 
+    <!-- Registration Description -->
+    <h2 style="margin-bottom: 12px;">Registration Description</h2>
+    <p style="font-size: 0.85rem; color: var(--text-light); margin-bottom: 8px;">Short summary shown on the registration page when this program is selected.</p>
+    <form method="POST" action="/admin/programs/<%= program.id %>/reg-description" style="margin-bottom: 32px;">
+      <div class="form-group">
+        <textarea name="registration_description" rows="3"
+          style="width: 100%; padding: 12px; border: 1px solid #ccc; border-radius: var(--radius); font-family: inherit; font-size: 0.95rem;"
+          placeholder="A brief description shown during registration..."><%= program.registrationDescription || '' %></textarea>
+      </div>
+      <button type="submit" class="btn btn-green btn-sm">Save Registration Description</button>
+    </form>
+
     <!-- Long Description -->
     <h2 style="margin-bottom: 12px;">Description</h2>
     <link href="https://cdn.jsdelivr.net/npm/quill@2/dist/quill.snow.css" rel="stylesheet">

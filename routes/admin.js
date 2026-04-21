@@ -131,6 +131,12 @@ router.post('/programs/:id/content', requireAuth, asyncHandler(async (req, res) 
   res.redirect(303, '/admin/programs/' + req.params.id + '/edit');
 }));
 
+router.post('/programs/:id/reg-description', requireAuth, asyncHandler(async (req, res) => {
+  await db.updateProgramRegDescription(req.params.id, req.body.registration_description);
+  req.session.flash = { type: 'success', msg: 'Registration description updated.' };
+  res.redirect(303, '/admin/programs/' + req.params.id + '/edit');
+}));
+
 router.post('/programs/:id/upload-url', requireAuth, asyncHandler(async (req, res) => {
   const { filename, contentType } = req.body;
   const result = await storage.getUploadUrl(req.params.id, filename, contentType);

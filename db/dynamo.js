@@ -86,6 +86,15 @@ async function updateProgramDescription(id, longDescription) {
   }));
 }
 
+async function updateProgramRegDescription(id, registrationDescription) {
+  await client.send(new UpdateCommand({
+    TableName: T.programs,
+    Key: { id },
+    UpdateExpression: 'SET registrationDescription = :rd',
+    ExpressionAttributeValues: { ':rd': registrationDescription || null },
+  }));
+}
+
 async function updateProgramHero(id, data) {
   const expr = [];
   const vals = {};
@@ -519,7 +528,7 @@ async function savePage(slug, data) {
 
 module.exports = {
   getAllPrograms, getProgram, getProgramBySlug, createProgram, deleteProgram,
-  updateProgramDescription, updateProgramHero, addProgramMedia, removeProgramMedia,
+  updateProgramDescription, updateProgramRegDescription, updateProgramHero, addProgramMedia, removeProgramMedia,
   getDatesByProgram, addDates, removeDate,
   createRegistration, getEnrollments, getRegistrationsByProgram,
   countRegistrationsByProgram, updatePayment,

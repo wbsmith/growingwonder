@@ -17,6 +17,8 @@
       </select>
     </div>
 
+    <div id="programDescription" style="display: none; padding: 12px 16px; background: var(--sand); border-radius: var(--radius); margin-bottom: 14px; font-size: 0.9rem; color: var(--text); line-height: 1.5;"></div>
+
     <div class="calendar-container" id="calendarContainer">
       <h3>Select Your Dates</h3>
       <p id="calendarHint" style="color: var(--text-light); font-size: 0.9rem; margin-bottom: 12px;"></p>
@@ -134,6 +136,28 @@ document.getElementById('waiverModal').addEventListener('click', function(e) {
 });
 </script>
 
+<script>
+(function() {
+  const programData = <%- JSON.stringify(programs.reduce((acc, p) => {
+    acc[p.id] = p.registrationDescription || null;
+    return acc;
+  }, {})) %>;
+  const sel = document.getElementById('programSelect');
+  const descEl = document.getElementById('programDescription');
+
+  function showDesc() {
+    const desc = programData[sel.value];
+    if (desc) {
+      descEl.textContent = desc;
+      descEl.style.display = 'block';
+    } else {
+      descEl.style.display = 'none';
+    }
+  }
+  sel.addEventListener('change', showDesc);
+  if (sel.value) showDesc();
+})();
+</script>
 <script src="/js/calendar.js"></script>
 <script src="/js/children.js"></script>
 <script src="/js/validate.js"></script>
