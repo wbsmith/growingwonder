@@ -300,6 +300,45 @@ async function countRegistrationsByProgram(programId) {
   return Count || 0;
 }
 
+async function deleteRegistration(id) {
+  // Get the registration to find dates to decrement
+  const reg = await client.send(new GetCommand({
+    TableName: T.registrations, Key: { id },
+  }));
+  if (!reg.Item) return;
+
+  const item = reg.Item;
+
+  // Decrement enrolled counts on each date
+  if (item.selectedDates && item.selectedDates.length > 0 && item.programId && item.programId !== 'imported') {
+    for (const date of item.selectedDates) {
+      try {
+        await client.send(new UpdateCommand({
+          TableName: T.dates,
+          Key: { programId: item.programId, date },
+          UpdateExpression: 'ADD enrolled :neg',
+          ExpressionAttributeValues: { ':neg': -1 },
+        }));
+      } catch (e) { /* date may not exist anymore */ }
+    }
+  }
+
+  // Delete associated email queue entries
+  const { Items: emails } = await client.send(new ScanCommand({
+    TableName: T.emails,
+    FilterExpression: 'registrationId = :rid',
+    ExpressionAttributeValues: { ':rid': id },
+  }));
+  if (emails && emails.length > 0) {
+    for (const em of emails) {
+      await client.send(new DeleteCommand({ TableName: T.emails, Key: { id: em.id } }));
+    }
+  }
+
+  // Delete the registration
+  await client.send(new DeleteCommand({ TableName: T.registrations, Key: { id } }));
+}
+
 async function updatePayment(id, paymentDate, paymentAmount, paymentNotes) {
   await client.send(new UpdateCommand({
     TableName: T.registrations,
@@ -531,7 +570,7 @@ module.exports = {
   updateProgramDescription, updateProgramRegDescription, updateProgramHero, addProgramMedia, removeProgramMedia,
   getDatesByProgram, addDates, removeDate,
   createRegistration, getEnrollments, getRegistrationsByProgram,
-  countRegistrationsByProgram, updatePayment,
+  countRegistrationsByProgram, deleteRegistration, updatePayment,
   getAllEmails, getEmail, updateEmailDraft, addEmailAttachment, removeEmailAttachment,
   markEmailSent, markEmailFailed,
   countPendingEmails, getDashboardStats,

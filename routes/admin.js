@@ -243,6 +243,13 @@ router.get('/enrollments', requireAuth, asyncHandler(async (req, res) => {
   res.render('admin/enrollments', { tab, enrollments, programs, selectedProgramId: programId, weeks });
 }));
 
+router.post('/enrollments/delete', requireAuth, asyncHandler(async (req, res) => {
+  const { registration_id } = req.body;
+  await db.deleteRegistration(registration_id);
+  req.session.flash = { type: 'success', msg: 'Registration deleted.' };
+  res.redirect(303, req.get('Referer') || '/admin/enrollments?tab=registrations');
+}));
+
 router.post('/enrollments/payment', requireAuth, asyncHandler(async (req, res) => {
   const { registration_id, payment_date, payment_amount, payment_notes } = req.body;
   const amount = payment_amount !== '' ? parseFloat(payment_amount) : null;

@@ -34,6 +34,7 @@
               <th>Phone</th>
               <th>Dates</th>
               <th>Registered</th>
+              <th></th>
             </tr>
           </thead>
           <tbody>
@@ -54,6 +55,13 @@
                   <% }) %>
                 </td>
                 <td style="font-size: 0.8rem;"><%= e.createdAt %></td>
+                <td>
+                  <form method="POST" action="/admin/enrollments/delete" style="display:inline;">
+                    <input type="hidden" name="registration_id" value="<%= e.id %>">
+                    <button type="submit" class="btn btn-danger btn-sm"
+                      onclick="return confirm('Delete registration for <%= e.parentName %>? This also removes their enrollment from date counts.')">Delete</button>
+                  </form>
+                </td>
               </tr>
             <% }) %>
           </tbody>
@@ -117,6 +125,11 @@
                 </td>
                 <td>
                   <button type="button" class="btn btn-outline btn-sm" onclick="openEdit('<%= r.id %>')">Edit</button>
+                  <form method="POST" action="/admin/enrollments/delete" style="display:inline; margin-left: 4px;">
+                    <input type="hidden" name="registration_id" value="<%= r.id %>">
+                    <button type="submit" class="btn btn-danger btn-sm"
+                      onclick="return confirm('Delete registration for <%= r.parentName %>?')">Delete</button>
+                  </form>
                 </td>
               </tr>
             <% }) %>
