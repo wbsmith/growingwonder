@@ -509,6 +509,11 @@ router.post('/messages/emails/:id/detach', requireAuth, asyncHandler(async (req,
 }));
 
 router.post('/messages/emails/:id/send', requireAuth, asyncHandler(async (req, res) => {
+  // Save any edits from the form before sending
+  if (req.body.subject && req.body.body) {
+    try { await db.updateEmailDraft(req.params.id, req.body.subject, req.body.body); } catch (e) { /* may fail if not draft */ }
+  }
+
   const email = await db.getEmail(req.params.id);
   if (!email || email.status !== 'draft') {
     req.session.flash = { type: 'error', msg: 'Email not found or already sent.' };
