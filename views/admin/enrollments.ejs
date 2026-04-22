@@ -49,17 +49,29 @@
                 <td><%= e.parentName %></td>
                 <td><%= e.parentEmail %></td>
                 <td><%= e.parentPhone %></td>
-                <td>
-                  <% (e.selectedDates || []).sort().forEach(d => { %>
-                    <div style="font-size: 0.8rem;"><%= d %></div>
-                  <% }) %>
+                <td style="font-size: 0.8rem;">
+                  <%
+                    const dates = (e.selectedDates || []).sort();
+                    let lastYM = '';
+                    dates.forEach(d => {
+                      const [y, m, day] = d.split('-');
+                      const ym = y + '-' + m;
+                      const monthName = new Date(d + 'T00:00:00').toLocaleDateString('en-US', { month: 'short' });
+                      if (ym !== lastYM) {
+                        if (lastYM) { %><br><% }
+                        %><strong><%= monthName %> <%= y %>:</strong> <%
+                        lastYM = ym;
+                      }
+                      %><span style="white-space: nowrap;"><%= parseInt(day) %><form method="POST" action="/admin/enrollments/remove-date" style="display:inline;"><input type="hidden" name="registration_id" value="<%= e.id %>"><input type="hidden" name="date" value="<%= d %>"><button type="submit" style="background:none;border:none;color:var(--red);cursor:pointer;font-size:0.7rem;padding:0 2px;" title="Remove this date" onclick="return confirm('Remove <%= d %> from this registration?')">&times;</button></form></span> <%
+                    });
+                  %>
                 </td>
                 <td style="font-size: 0.8rem;"><%= e.createdAt %></td>
                 <td>
                   <form method="POST" action="/admin/enrollments/delete" style="display:inline;">
                     <input type="hidden" name="registration_id" value="<%= e.id %>">
                     <button type="submit" class="btn btn-danger btn-sm"
-                      onclick="return confirm('Delete registration for <%= e.parentName %>? This also removes their enrollment from date counts.')">Delete</button>
+                      onclick="return confirm('Delete entire registration for <%= e.parentName %>?')">Delete</button>
                   </form>
                 </td>
               </tr>
@@ -108,10 +120,22 @@
                   <% }) %>
                 </td>
                 <td><%= r.programName %></td>
-                <td style="font-size: 0.75rem;">
-                  <% (r.selectedDates || []).sort().forEach(d => { %>
-                    <div><%= d %></div>
-                  <% }) %>
+                <td style="font-size: 0.8rem;">
+                  <%
+                    const pdates = (r.selectedDates || []).sort();
+                    let plastYM = '';
+                    pdates.forEach(d => {
+                      const [y, m, day] = d.split('-');
+                      const ym = y + '-' + m;
+                      const monthName = new Date(d + 'T00:00:00').toLocaleDateString('en-US', { month: 'short' });
+                      if (ym !== plastYM) {
+                        if (plastYM) { %><br><% }
+                        %><strong><%= monthName %> <%= y %>:</strong> <%
+                        plastYM = ym;
+                      }
+                      %><%= parseInt(day) %> <%
+                    });
+                  %>
                 </td>
                 <td style="font-size: 0.8rem;"><%= r.confirmationDate || '—' %></td>
                 <td style="font-size: 0.8rem;">

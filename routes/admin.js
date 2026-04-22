@@ -243,6 +243,13 @@ router.get('/enrollments', requireAuth, asyncHandler(async (req, res) => {
   res.render('admin/enrollments', { tab, enrollments, programs, selectedProgramId: programId, weeks });
 }));
 
+router.post('/enrollments/remove-date', requireAuth, asyncHandler(async (req, res) => {
+  const { registration_id, date } = req.body;
+  await db.removeDateFromRegistration(registration_id, date);
+  req.session.flash = { type: 'success', msg: `Removed ${date} from registration.` };
+  res.redirect(303, req.get('Referer') || '/admin/enrollments?tab=registrations');
+}));
+
 router.post('/enrollments/delete', requireAuth, asyncHandler(async (req, res) => {
   const { registration_id } = req.body;
   await db.deleteRegistration(registration_id);

@@ -339,6 +339,33 @@ async function deleteRegistration(id) {
   await client.send(new DeleteCommand({ TableName: T.registrations, Key: { id } }));
 }
 
+async function removeDateFromRegistration(id, date) {
+  const { Item } = await client.send(new GetCommand({
+    TableName: T.registrations, Key: { id },
+  }));
+  if (!Item) return;
+
+  const dates = (Item.selectedDates || []).filter(d => d !== date);
+  await client.send(new UpdateCommand({
+    TableName: T.registrations,
+    Key: { id },
+    UpdateExpression: 'SET selectedDates = :dates',
+    ExpressionAttributeValues: { ':dates': dates },
+  }));
+
+  // Decrement enrolled count on the date
+  if (Item.programId && Item.programId !== 'imported') {
+    try {
+      await client.send(new UpdateCommand({
+        TableName: T.dates,
+        Key: { programId: Item.programId, date },
+        UpdateExpression: 'ADD enrolled :neg',
+        ExpressionAttributeValues: { ':neg': -1 },
+      }));
+    } catch (e) { /* date may not exist */ }
+  }
+}
+
 async function updatePayment(id, paymentDate, paymentAmount, paymentNotes) {
   await client.send(new UpdateCommand({
     TableName: T.registrations,
@@ -570,7 +597,7 @@ module.exports = {
   updateProgramDescription, updateProgramRegDescription, updateProgramHero, addProgramMedia, removeProgramMedia,
   getDatesByProgram, addDates, removeDate,
   createRegistration, getEnrollments, getRegistrationsByProgram,
-  countRegistrationsByProgram, deleteRegistration, updatePayment,
+  countRegistrationsByProgram, deleteRegistration, removeDateFromRegistration, updatePayment,
   getAllEmails, getEmail, updateEmailDraft, addEmailAttachment, removeEmailAttachment,
   markEmailSent, markEmailFailed,
   countPendingEmails, getDashboardStats,
