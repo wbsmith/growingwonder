@@ -182,6 +182,15 @@ async function addDates(programId, dateList, maxCapacity) {
   }
 }
 
+async function updateDateCapacity(programId, date, maxCapacity) {
+  await client.send(new UpdateCommand({
+    TableName: T.dates,
+    Key: { programId, date },
+    UpdateExpression: 'SET maxCapacity = :cap',
+    ExpressionAttributeValues: { ':cap': maxCapacity },
+  }));
+}
+
 async function removeDate(programId, date) {
   // Check enrolled count first
   const { Item } = await client.send(new GetCommand({
@@ -226,6 +235,7 @@ async function createRegistration(data) {
         TableName: T.dates,
         Key: { programId: data.programId, date },
         UpdateExpression: 'ADD enrolled :one',
+        ConditionExpression: 'attribute_not_exists(enrolled) OR enrolled < maxCapacity',
         ExpressionAttributeValues: { ':one': 1 },
       },
     });
@@ -595,7 +605,7 @@ async function savePage(slug, data) {
 module.exports = {
   getAllPrograms, getProgram, getProgramBySlug, createProgram, deleteProgram,
   updateProgramDescription, updateProgramRegDescription, updateProgramHero, addProgramMedia, removeProgramMedia,
-  getDatesByProgram, addDates, removeDate,
+  getDatesByProgram, addDates, updateDateCapacity, removeDate,
   createRegistration, getEnrollments, getRegistrationsByProgram,
   countRegistrationsByProgram, deleteRegistration, removeDateFromRegistration, updatePayment,
   getAllEmails, getEmail, updateEmailDraft, addEmailAttachment, removeEmailAttachment,

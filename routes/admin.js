@@ -189,6 +189,18 @@ router.post('/dates/add', requireAuth, asyncHandler(async (req, res) => {
   res.redirect('/admin/programs/' + program_id + '/dates');
 }));
 
+router.post('/dates/capacity', requireAuth, asyncHandler(async (req, res) => {
+  const { program_id, date, max_capacity } = req.body;
+  const cap = parseInt(max_capacity, 10);
+  if (!cap || cap < 1) {
+    req.session.flash = { type: 'error', msg: 'Capacity must be at least 1.' };
+  } else {
+    await db.updateDateCapacity(program_id, date, cap);
+    req.session.flash = { type: 'success', msg: `Capacity for ${date} set to ${cap}.` };
+  }
+  res.redirect('/admin/programs/' + program_id + '/dates');
+}));
+
 router.post('/dates/remove', requireAuth, asyncHandler(async (req, res) => {
   const { program_id, date_to_remove } = req.body;
   const result = await db.removeDate(program_id, date_to_remove);

@@ -49,7 +49,14 @@
             <tr>
               <td><%= d.date %></td>
               <td><%= dt.toLocaleDateString('en-US', { weekday: 'long' }) %></td>
-              <td><%= d.maxCapacity %></td>
+              <td>
+                <form method="POST" action="/admin/dates/capacity" style="display: inline-flex; align-items: center; gap: 4px;">
+                  <input type="hidden" name="program_id" value="<%= selectedProgramId %>">
+                  <input type="hidden" name="date" value="<%= d.date %>">
+                  <input type="number" name="max_capacity" value="<%= d.maxCapacity %>" min="1" style="width: 50px; padding: 4px; border: 1px solid #ccc; border-radius: 4px; text-align: center; font-size: 0.85rem;">
+                  <button type="submit" style="background: none; border: none; cursor: pointer; color: var(--green-mid); font-size: 0.8rem;" title="Save">&#10003;</button>
+                </form>
+              </td>
               <td><%= d.enrolled || 0 %></td>
               <td>
                 <% if (!d.enrolled) { %>

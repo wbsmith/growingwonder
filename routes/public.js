@@ -86,6 +86,23 @@ router.post('/register', asyncHandler(async (req, res) => {
     return res.redirect(303, regUrl);
   }
 
+  // Check capacity on each selected date
+  const programDates = await db.getDatesByProgram(program_id);
+  const dateCapMap = {};
+  programDates.forEach(d => { dateCapMap[d.date] = { capacity: d.maxCapacity || 12, enrolled: d.enrolled || 0 }; });
+  const fullDates = dateList.filter(d => {
+    const info = dateCapMap[d];
+    return info && info.enrolled >= info.capacity;
+  });
+  if (fullDates.length > 0) {
+    const fullStr = fullDates.map(d => {
+      const dt = new Date(d + 'T00:00:00');
+      return dt.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+    }).join(', ');
+    req.session.flash = { type: 'error', msg: `The following date(s) are at capacity and cannot be booked: ${fullStr}. Please adjust your selection.` };
+    return res.redirect(303, regUrl);
+  }
+
   const emailRe = /^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$/;
   const phoneDigits = parent_phone.replace(/\D/g, '');
   if (!emailRe.test(parent_email)) {
@@ -146,7 +163,14 @@ ${site.name} Team`;
     res.redirect(303, '/register/thanks');
   } catch (err) {
     console.error('Registration error:', err);
-    req.session.flash = { type: 'error', msg: 'Something went wrong. Please try again.' };
+    const isCapacity = err.name === 'TransactionCanceledException' &&
+      (err.message || '').includes('ConditionalCheckFailed');
+    req.session.flash = {
+      type: 'error',
+      msg: isCapacity
+        ? 'One or more selected dates just reached capacity. Please refresh and try again with different dates.'
+        : 'Something went wrong. Please try again.',
+    };
     res.redirect(303, regUrl);
   }
 }));
