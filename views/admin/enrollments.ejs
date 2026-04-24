@@ -224,45 +224,58 @@
             ? ['Sun','Mon','Tue','Wed','Thu','Fri','Sat']
             : ['Mon','Tue','Wed','Thu','Fri'];
           const dayDows = anyWeekend ? [0,1,2,3,4,5,6] : [1,2,3,4,5];
+
+          function heatColor(count, capacity) {
+            if (!capacity || count === 0) return '';
+            const pct = Math.min(count / capacity, 1);
+            // Green gradient: light → dark
+            const r = Math.round(232 - pct * 100);
+            const g = Math.round(245 - pct * 40);
+            const b = Math.round(233 - pct * 110);
+            return 'background:rgb(' + r + ',' + g + ',' + b + ');';
+          }
         %>
-        <table class="data-table" style="font-size: 0.85rem;">
+        <div style="display: inline-block;">
+        <table style="border-collapse: collapse; font-size: 0.8rem;">
           <thead>
             <tr>
-              <th>Week</th>
+              <th style="padding: 6px 10px; border: 1px solid #bbb; background: var(--green-dark); color: white; font-size: 0.75rem;">Week</th>
               <% dayHeaders.forEach(h => { %>
-                <th style="text-align: center; min-width: 40px;"><%= h %></th>
+                <th style="padding: 6px 8px; border: 1px solid #bbb; background: var(--green-dark); color: white; text-align: center; font-size: 0.75rem; min-width: 36px;"><%= h %></th>
               <% }) %>
-              <th style="text-align: center;">Distinct</th>
-              <th style="text-align: center;">Total</th>
+              <th style="padding: 6px 8px; border: 1px solid #bbb; background: var(--sand); text-align: center; font-size: 0.7rem;">Fam</th>
+              <th style="padding: 6px 8px; border: 1px solid #bbb; background: var(--sand); text-align: center; font-size: 0.7rem;">Tot</th>
             </tr>
           </thead>
           <tbody>
             <% summaryWeeks.forEach(week => { %>
               <tr>
-                <td style="white-space: nowrap; font-weight: 600;">
+                <td style="padding: 5px 8px; border: 1px solid #ccc; white-space: nowrap; font-weight: 600; font-size: 0.75rem; background: #fafaf7;">
                   <%
                     const wm = new Date(week.monday + 'T00:00:00');
                     const endDate = anyWeekend ? new Date(week.sunday + 'T00:00:00') : new Date(week.friday + 'T00:00:00');
                   %>
-                  <%= wm.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) %> – <%= endDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) %>
+                  <%= wm.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) %>&ndash;<%= endDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) %>
                 </td>
                 <% dayDows.forEach(dow => {
-                  const dayInfo = week.days.find(d => d.dow === dow);
+                  const di = week.days.find(d => d.dow === dow);
+                  const full = di && di.available && di.capacity && di.count >= di.capacity;
                 %>
-                  <td style="text-align: center; <%= !dayInfo || !dayInfo.available ? 'color: #ccc;' : dayInfo.count > 0 ? 'font-weight: 700; color: var(--green-dark);' : '' %>">
-                    <% if (dayInfo && dayInfo.available) { %>
-                      <%= dayInfo.count %>
+                  <td style="padding: 5px 8px; border: 1px solid #ccc; text-align: center; <%= di && di.available ? heatColor(di.count, di.capacity) : 'background: #f5f4f0; color: #ccc;' %>">
+                    <% if (di && di.available) { %>
+                      <span style="<%= full ? 'color: var(--red); font-weight: 700;' : 'font-weight: 600;' %>"><%= di.count %></span>
                     <% } else { %>
                       &mdash;
                     <% } %>
                   </td>
                 <% }) %>
-                <td style="text-align: center; font-weight: 700; color: var(--brown);"><%= week.distinctFamilies %></td>
-                <td style="text-align: center; font-weight: 700; color: var(--green-dark);"><%= week.totalPersons %></td>
+                <td style="padding: 5px 8px; border: 1px solid #ccc; text-align: center; font-weight: 700; background: #fafaf7;"><%= week.distinctFamilies %></td>
+                <td style="padding: 5px 8px; border: 1px solid #ccc; text-align: center; font-weight: 700; background: #fafaf7;"><%= week.totalPersons %></td>
               </tr>
             <% }) %>
           </tbody>
         </table>
+        </div>
       <% } %>
 
     <% } else if (tab === 'rosters') { %>

@@ -246,6 +246,8 @@ router.get('/enrollments', requireAuth, asyncHandler(async (req, res) => {
     const allDates = await db.getDatesByProgram(programId);
     const regs = await db.getRegistrationsByProgram(programId);
     const dateSet = new Set(allDates.map(d => d.date));
+    const dateCapacity = {};
+    allDates.forEach(d => { dateCapacity[d.date] = d.maxCapacity || 12; });
 
     // Group dates into weeks (Mon-based)
     const weekMap = new Map(); // mondayStr -> { dates: Set, hasWeekend: false }
@@ -295,6 +297,7 @@ router.get('/enrollments', requireAuth, asyncHandler(async (req, res) => {
           dayNum: parseInt(dateStr.split('-')[2]),
           available: isAvailable,
           count,
+          capacity: dateCapacity[dateStr] || 0,
           distinctFamilies: enrolledParents.size,
         });
       }
