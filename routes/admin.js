@@ -240,7 +240,95 @@ router.get('/enrollments', requireAuth, asyncHandler(async (req, res) => {
     weeks = Array.from(weekSet.entries()).map(([monday, friday]) => ({ monday, friday }));
   }
 
-  res.render('admin/enrollments', { tab, enrollments, programs, selectedProgramId: programId, weeks });
+  // For summary tab: build weekly calendar with counts
+  let summaryWeeks = [];
+  if (tab === 'summary' && programId) {
+    const allDates = await db.getDatesByProgram(programId);
+    const regs = await db.getRegistrationsByProgram(programId);
+    const dateSet = new Set(allDates.map(d => d.date));
+
+    // Group dates into weeks (Mon-based)
+    const weekMap = new Map(); // mondayStr -> { dates: Set, hasWeekend: false }
+    for (const d of allDates) {
+      const dt = new Date(d.date + 'T00:00:00');
+      const dow = dt.getDay();
+      const mon = new Date(dt);
+      mon.setDate(mon.getDate() - ((dow + 6) % 7));
+      const monStr = mon.toISOString().slice(0, 10);
+      if (!weekMap.has(monStr)) weekMap.set(monStr, { dates: new Set(), hasWeekend: false });
+      weekMap.get(monStr).dates.add(d.date);
+      if (dow === 0 || dow === 6) weekMap.get(monStr).hasWeekend = true;
+    }
+
+    // For each week, compute per-day counts
+    for (const [monStr, weekInfo] of Array.from(weekMap.entries()).sort((a, b) => a[0].localeCompare(b[0]))) {
+      const mon = new Date(monStr + 'T00:00:00');
+      const sun = new Date(mon); sun.setDate(sun.getDate() + 6);
+      const numDays = weekInfo.hasWeekend ? 7 : 5;
+
+      // Build array of day columns
+      const days = [];
+      const startDow = weekInfo.hasWeekend ? 0 : 1; // Sun or Mon
+      for (let i = 0; i < numDays; i++) {
+        const dayDow = weekInfo.hasWeekend ? i : i + 1; // 0-6 or 1-5
+        const dayDate = new Date(mon);
+        dayDate.setDate(dayDate.getDate() + (dayDow - 1)); // mon is dow=1
+        const dateStr = dayDate.toISOString().slice(0, 10);
+        const isAvailable = dateSet.has(dateStr);
+
+        // Count enrollments for this date
+        let count = 0;
+        const enrolledParents = new Set();
+        if (isAvailable) {
+          for (const r of regs) {
+            if ((r.selectedDates || []).includes(dateStr)) {
+              count += (r.children || []).length; // total person-count
+              enrolledParents.add(r.id);
+            }
+          }
+        }
+
+        days.push({
+          date: dateStr,
+          dow: dayDow,
+          dayName: new Date(dateStr + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short' }),
+          dayNum: parseInt(dateStr.split('-')[2]),
+          available: isAvailable,
+          count,
+          distinctFamilies: enrolledParents.size,
+        });
+      }
+
+      // Week totals
+      let totalPersons = 0, distinctFamiliesWeek = new Set();
+      for (const r of regs) {
+        const regDates = r.selectedDates || [];
+        const hasDateThisWeek = days.some(d => d.available && regDates.includes(d.date));
+        if (hasDateThisWeek) {
+          distinctFamiliesWeek.add(r.id);
+          // Count total person-days
+          for (const d of days) {
+            if (d.available && regDates.includes(d.date)) {
+              totalPersons += (r.children || []).length;
+            }
+          }
+        }
+      }
+
+      const fri = new Date(mon); fri.setDate(fri.getDate() + 4);
+      summaryWeeks.push({
+        monday: monStr,
+        friday: fri.toISOString().slice(0, 10),
+        sunday: sun.toISOString().slice(0, 10),
+        hasWeekend: weekInfo.hasWeekend,
+        days,
+        totalPersons,
+        distinctFamilies: distinctFamiliesWeek.size,
+      });
+    }
+  }
+
+  res.render('admin/enrollments', { tab, enrollments, programs, selectedProgramId: programId, weeks, summaryWeeks });
 }));
 
 router.post('/enrollments/remove-date', requireAuth, asyncHandler(async (req, res) => {
@@ -506,6 +594,49 @@ router.post('/messages/emails/:id/detach', requireAuth, asyncHandler(async (req,
   await db.removeEmailAttachment(req.params.id, index);
   req.session.flash = { type: 'success', msg: 'Attachment removed.' };
   res.redirect(303, '/admin/messages/emails/' + req.params.id + '/edit');
+}));
+
+router.post('/messages/emails/:id/followup', requireAuth, asyncHandler(async (req, res) => {
+  const original = await db.getEmail(req.params.id);
+  if (!original) {
+    req.session.flash = { type: 'error', msg: 'Original email not found.' };
+    return res.redirect('/admin/messages?tab=confirmations');
+  }
+  const { subject, body } = req.body;
+  if (!subject || !body || !body.trim()) {
+    req.session.flash = { type: 'error', msg: 'Subject and body are required.' };
+    return res.redirect(303, '/admin/messages/emails/' + req.params.id + '/edit');
+  }
+  if (!mailer.isConfigured()) {
+    req.session.flash = { type: 'error', msg: 'SES not configured.' };
+    return res.redirect(303, '/admin/messages/emails/' + req.params.id + '/edit');
+  }
+  try {
+    await mailer.send(original.toAddr, subject, body, 'registration');
+    // Create a new email record for the follow-up
+    const { ulid } = require('ulid');
+    const followupId = ulid();
+    const { DynamoDBDocumentClient, PutCommand } = require('@aws-sdk/lib-dynamodb');
+    const { DynamoDBClient } = require('@aws-sdk/client-dynamodb');
+    const clientConfig = { region: process.env.WIW_AWS_REGION || process.env.AWS_REGION || 'us-west-1' };
+    if (process.env.WIW_ACCESS_KEY_ID) {
+      clientConfig.credentials = { accessKeyId: process.env.WIW_ACCESS_KEY_ID, secretAccessKey: process.env.WIW_SECRET_ACCESS_KEY };
+    }
+    const ddb = DynamoDBDocumentClient.from(new DynamoDBClient(clientConfig));
+    await ddb.send(new PutCommand({
+      TableName: 'wiw-email-queue',
+      Item: {
+        id: followupId, registrationId: original.registrationId, toAddr: original.toAddr,
+        subject, body, status: 'sent', sentAt: new Date().toISOString(), createdAt: new Date().toISOString(),
+        parentName: original.parentName, childName: original.childName, programName: original.programName,
+      },
+    }));
+    req.session.flash = { type: 'success', msg: `Follow-up sent to ${original.toAddr}.` };
+  } catch (err) {
+    console.error('Follow-up error:', err);
+    req.session.flash = { type: 'error', msg: 'Send failed: ' + err.message };
+  }
+  res.redirect(303, '/admin/messages?tab=confirmations');
 }));
 
 router.post('/messages/emails/:id/send', requireAuth, asyncHandler(async (req, res) => {

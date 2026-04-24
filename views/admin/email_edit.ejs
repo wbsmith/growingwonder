@@ -4,102 +4,120 @@
 <div class="admin-layout">
   <%- include('_sidebar', { active: 'messages', tab: 'confirmations' }) %>
   <main class="admin-main">
-    <h1>Edit Confirmation Email</h1>
+    <h1><%= email.status === 'sent' ? 'View / Follow Up' : 'Edit Confirmation Email' %></h1>
 
     <div class="email-meta">
       <strong>To:</strong> <%= email.toAddr %><br>
       <strong>Child:</strong> <%= email.childName %><br>
       <strong>Program:</strong> <%= email.programName %><br>
       <strong>Status:</strong> <span class="badge badge-<%= email.status %>"><%= email.status %></span>
+      <% if (email.sentAt) { %><br><strong>Sent:</strong> <%= email.sentAt %><% } %>
     </div>
 
-    <form method="POST" action="/admin/messages/emails/<%= email.id %>/update" class="email-edit">
-      <div class="form-group">
-        <label>Subject</label>
-        <input type="text" name="subject" value="<%= email.subject %>" style="width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: var(--radius);">
+    <% if (email.status === 'sent') { %>
+      <!-- Sent email: show body read-only, offer follow-up -->
+      <div style="background: var(--white); border: 1px solid #ddd; border-radius: var(--radius); padding: 16px; margin-bottom: 20px;">
+        <div style="font-size: 0.85rem; color: var(--text-light); margin-bottom: 8px;"><strong>Subject:</strong> <%= email.subject %></div>
+        <pre style="white-space: pre-wrap; font-family: inherit; font-size: 0.9rem; margin: 0;"><%= email.body %></pre>
       </div>
-      <div class="form-group">
-        <label>Body</label>
-        <textarea name="body"><%= email.body %></textarea>
-      </div>
-      <div style="display: flex; gap: 12px;">
-        <button type="submit" class="btn btn-outline">Save Draft</button>
-        <% if (email.status === 'draft' || email.status === 'failed') { %>
+
+      <h3 style="color: var(--green-dark); margin-bottom: 12px;">Send Follow-up</h3>
+      <form method="POST" action="/admin/messages/emails/<%= email.id %>/followup" class="email-edit">
+        <div class="form-group">
+          <label>Subject</label>
+          <input type="text" name="subject" value="Re: <%= email.subject %>" style="width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: var(--radius);">
+        </div>
+        <div class="form-group">
+          <label>Body</label>
+          <textarea name="body" rows="8" placeholder="Type your follow-up message..."></textarea>
+        </div>
+        <div style="display: flex; gap: 12px;">
+          <button type="submit" class="btn btn-green"
+            onclick="return confirm('Send follow-up to <%= email.toAddr %>?')">
+            Send Follow-up
+          </button>
+          <a href="/admin/messages?tab=confirmations" class="btn btn-outline" style="margin-left: auto;">Back</a>
+        </div>
+      </form>
+
+    <% } else { %>
+      <!-- Draft/failed: editable -->
+      <form method="POST" action="/admin/messages/emails/<%= email.id %>/update" class="email-edit">
+        <div class="form-group">
+          <label>Subject</label>
+          <input type="text" name="subject" value="<%= email.subject %>" style="width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: var(--radius);">
+        </div>
+        <div class="form-group">
+          <label>Body</label>
+          <textarea name="body"><%= email.body %></textarea>
+        </div>
+        <div style="display: flex; gap: 12px;">
+          <button type="submit" class="btn btn-outline">Save Draft</button>
           <button type="submit" formaction="/admin/messages/emails/<%= email.id %>/send" class="btn btn-green"
             onclick="return confirm('Send this email to <%= email.toAddr %>?')">
             Send Email
           </button>
-        <% } %>
-        <a href="/admin/messages?tab=confirmations" class="btn btn-outline" style="margin-left: auto;">Back</a>
-      </div>
-    </form>
-
-    <% if (email.status === 'draft' || email.status === 'failed') { %>
-    <!-- Attachments -->
-    <div style="margin-top: 24px; padding: 20px; background: var(--sand); border-radius: var(--radius);">
-      <h3 style="margin-bottom: 12px; color: var(--green-dark); font-size: 1rem;">Attachments</h3>
-
-      <% const attachments = email.attachments || []; %>
-      <% if (attachments.length > 0) { %>
-        <div style="margin-bottom: 16px;">
-          <% attachments.forEach((att, idx) => { %>
-            <div style="display: flex; align-items: center; gap: 12px; padding: 8px 0; border-bottom: 1px solid #ddd;">
-              <span style="font-size: 0.85rem; flex: 1;"><%= att.filename %></span>
-              <a href="<%= att.url %>" target="_blank" style="font-size: 0.8rem;">View</a>
-              <form method="POST" action="/admin/messages/emails/<%= email.id %>/detach" style="display:inline;">
-                <input type="hidden" name="index" value="<%= idx %>">
-                <input type="hidden" name="key" value="<%= att.key || '' %>">
-                <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Remove this attachment?')">Remove</button>
-              </form>
-            </div>
-          <% }) %>
+          <a href="/admin/messages?tab=confirmations" class="btn btn-outline" style="margin-left: auto;">Back</a>
         </div>
-      <% } %>
+      </form>
 
-      <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
-        <input type="file" id="attachFile" style="font-size: 0.85rem;">
-        <button type="button" class="btn btn-outline btn-sm" onclick="uploadAttachment()">Add Attachment</button>
+      <!-- Attachments -->
+      <div style="margin-top: 24px; padding: 20px; background: var(--sand); border-radius: var(--radius);">
+        <h3 style="margin-bottom: 12px; color: var(--green-dark); font-size: 1rem;">Attachments</h3>
+
+        <% const attachments = email.attachments || []; %>
+        <% if (attachments.length > 0) { %>
+          <div style="margin-bottom: 16px;">
+            <% attachments.forEach((att, idx) => { %>
+              <div style="display: flex; align-items: center; gap: 12px; padding: 8px 0; border-bottom: 1px solid #ddd;">
+                <span style="font-size: 0.85rem; flex: 1;"><%= att.filename %></span>
+                <a href="<%= att.url %>" target="_blank" style="font-size: 0.8rem;">View</a>
+                <form method="POST" action="/admin/messages/emails/<%= email.id %>/detach" style="display:inline;">
+                  <input type="hidden" name="index" value="<%= idx %>">
+                  <input type="hidden" name="key" value="<%= att.key || '' %>">
+                  <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Remove this attachment?')">Remove</button>
+                </form>
+              </div>
+            <% }) %>
+          </div>
+        <% } %>
+
+        <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+          <input type="file" id="attachFile" style="font-size: 0.85rem;">
+          <button type="button" class="btn btn-outline btn-sm" onclick="uploadAttachment()">Add Attachment</button>
+        </div>
+        <div id="attachStatus" style="font-size: 0.85rem; color: var(--text-light); margin-top: 8px;"></div>
       </div>
-      <div id="attachStatus" style="font-size: 0.85rem; color: var(--text-light); margin-top: 8px;"></div>
-    </div>
 
-    <script>
-    async function uploadAttachment() {
-      const file = document.getElementById('attachFile').files[0];
-      const status = document.getElementById('attachStatus');
-      if (!file) { status.textContent = 'Select a file first.'; return; }
-
-      status.textContent = 'Uploading...';
-      try {
-        const res = await fetch('/admin/messages/emails/<%= email.id %>/upload-url', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ filename: file.name, contentType: file.type }),
-        });
-        const presigned = await res.json();
-
-        await fetch(presigned.uploadUrl, {
-          method: 'PUT',
-          headers: { 'Content-Type': file.type },
-          body: file,
-        });
-
-        // Save attachment reference
-        const form = document.createElement('form');
-        form.method = 'POST';
-        form.action = '/admin/messages/emails/<%= email.id %>/attach';
-        [['filename', file.name], ['url', presigned.publicUrl], ['key', presigned.key], ['contentType', file.type]].forEach(([k, v]) => {
-          const input = document.createElement('input');
-          input.type = 'hidden'; input.name = k; input.value = v;
-          form.appendChild(input);
-        });
-        document.body.appendChild(form);
-        form.submit();
-      } catch (err) {
-        status.textContent = 'Upload failed: ' + err.message;
+      <script>
+      async function uploadAttachment() {
+        const file = document.getElementById('attachFile').files[0];
+        const status = document.getElementById('attachStatus');
+        if (!file) { status.textContent = 'Select a file first.'; return; }
+        status.textContent = 'Uploading...';
+        try {
+          const res = await fetch('/admin/messages/emails/<%= email.id %>/upload-url', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ filename: file.name, contentType: file.type }),
+          });
+          const presigned = await res.json();
+          await fetch(presigned.uploadUrl, { method: 'PUT', headers: { 'Content-Type': file.type }, body: file });
+          const form = document.createElement('form');
+          form.method = 'POST';
+          form.action = '/admin/messages/emails/<%= email.id %>/attach';
+          [['filename', file.name], ['url', presigned.publicUrl], ['key', presigned.key], ['contentType', file.type]].forEach(([k, v]) => {
+            const input = document.createElement('input');
+            input.type = 'hidden'; input.name = k; input.value = v;
+            form.appendChild(input);
+          });
+          document.body.appendChild(form);
+          form.submit();
+        } catch (err) {
+          status.textContent = 'Upload failed: ' + err.message;
+        }
       }
-    }
-    </script>
+      </script>
     <% } %>
   </main>
 </div>

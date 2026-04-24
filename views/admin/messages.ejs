@@ -36,7 +36,7 @@
                   <% if (e.status === 'draft') { %>
                     <a href="/admin/messages/emails/<%= e.id %>/edit" class="btn btn-outline btn-sm">Edit & Send</a>
                   <% } else if (e.status === 'sent') { %>
-                    <span style="color: var(--text-light); font-size: 0.8rem;">Sent <%= e.sentAt %></span>
+                    <a href="/admin/messages/emails/<%= e.id %>/edit" class="btn btn-outline btn-sm">View / Follow Up</a>
                   <% } else { %>
                     <a href="/admin/messages/emails/<%= e.id %>/edit" class="btn btn-outline btn-sm">Retry</a>
                   <% } %>

@@ -4,7 +4,7 @@
 <div class="admin-layout">
   <%- include('_sidebar', { active: 'enrollments', tab: tab }) %>
   <main class="admin-main">
-    <h1><%= tab === 'payments' ? 'Payments' : tab === 'rosters' ? 'Rosters' : tab === 'import' ? 'Import Contacts' : 'Registrations' %></h1>
+    <h1><%= tab === 'payments' ? 'Payments' : tab === 'summary' ? 'Registration Summary' : tab === 'rosters' ? 'Rosters' : tab === 'import' ? 'Import Contacts' : 'Registrations' %></h1>
 
     <!-- Program filter (shared across tabs) -->
     <form method="GET" action="/admin/enrollments" class="inline-form" style="margin-bottom: 24px;">
@@ -210,6 +210,60 @@
         rows.forEach(r => tbody.appendChild(r));
       }
       </script>
+
+    <% } else if (tab === 'summary') { %>
+      <!-- SUMMARY TAB -->
+      <% if (!selectedProgramId) { %>
+        <p style="color: var(--text-light);">Select a program above to view the summary.</p>
+      <% } else if (!summaryWeeks || summaryWeeks.length === 0) { %>
+        <p style="color: var(--text-light);">No dates configured for this program.</p>
+      <% } else { %>
+        <%
+          const anyWeekend = summaryWeeks.some(w => w.hasWeekend);
+          const dayHeaders = anyWeekend
+            ? ['Sun','Mon','Tue','Wed','Thu','Fri','Sat']
+            : ['Mon','Tue','Wed','Thu','Fri'];
+          const dayDows = anyWeekend ? [0,1,2,3,4,5,6] : [1,2,3,4,5];
+        %>
+        <table class="data-table" style="font-size: 0.85rem;">
+          <thead>
+            <tr>
+              <th>Week</th>
+              <% dayHeaders.forEach(h => { %>
+                <th style="text-align: center; min-width: 40px;"><%= h %></th>
+              <% }) %>
+              <th style="text-align: center;">Distinct</th>
+              <th style="text-align: center;">Total</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% summaryWeeks.forEach(week => { %>
+              <tr>
+                <td style="white-space: nowrap; font-weight: 600;">
+                  <%
+                    const wm = new Date(week.monday + 'T00:00:00');
+                    const endDate = anyWeekend ? new Date(week.sunday + 'T00:00:00') : new Date(week.friday + 'T00:00:00');
+                  %>
+                  <%= wm.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) %> – <%= endDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) %>
+                </td>
+                <% dayDows.forEach(dow => {
+                  const dayInfo = week.days.find(d => d.dow === dow);
+                %>
+                  <td style="text-align: center; <%= !dayInfo || !dayInfo.available ? 'color: #ccc;' : dayInfo.count > 0 ? 'font-weight: 700; color: var(--green-dark);' : '' %>">
+                    <% if (dayInfo && dayInfo.available) { %>
+                      <%= dayInfo.count %>
+                    <% } else { %>
+                      &mdash;
+                    <% } %>
+                  </td>
+                <% }) %>
+                <td style="text-align: center; font-weight: 700; color: var(--brown);"><%= week.distinctFamilies %></td>
+                <td style="text-align: center; font-weight: 700; color: var(--green-dark);"><%= week.totalPersons %></td>
+              </tr>
+            <% }) %>
+          </tbody>
+        </table>
+      <% } %>
 
     <% } else if (tab === 'rosters') { %>
       <!-- ROSTERS TAB -->
