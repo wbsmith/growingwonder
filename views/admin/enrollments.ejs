@@ -24,9 +24,18 @@
       <% if (enrollments.length === 0) { %>
         <p style="color: var(--text-light);">No registrations yet.</p>
       <% } else { %>
+        <form method="POST" action="/admin/enrollments/merge" id="mergeForm">
+          <div style="margin-bottom: 12px;">
+            <button type="submit" class="btn btn-outline btn-sm" id="mergeBtn" disabled
+              onclick="return confirm('Merge selected registrations? Dates and children will be combined into the earliest registration.')">
+              Merge Selected
+            </button>
+            <span id="mergeCount" style="font-size: 0.8rem; color: var(--text-light); margin-left: 8px;"></span>
+          </div>
         <table class="data-table">
           <thead>
             <tr>
+              <th style="width: 30px;"><input type="checkbox" id="selectAll" onclick="toggleAll(this)"></th>
               <th>Program</th>
               <th>Children</th>
               <th>Parent</th>
@@ -40,6 +49,7 @@
           <tbody>
             <% enrollments.forEach(e => { %>
               <tr>
+                <td><input type="checkbox" name="merge_ids" value="<%= e.id %>" class="merge-check" onchange="updateMergeBtn()"></td>
                 <td><%= e.programName %></td>
                 <td>
                   <% (e.children || []).forEach(c => { %>
@@ -78,6 +88,20 @@
             <% }) %>
           </tbody>
         </table>
+        </form>
+        <script>
+        function toggleAll(el) {
+          document.querySelectorAll('.merge-check').forEach(c => { c.checked = el.checked; });
+          updateMergeBtn();
+        }
+        function updateMergeBtn() {
+          const checked = document.querySelectorAll('.merge-check:checked');
+          const btn = document.getElementById('mergeBtn');
+          const count = document.getElementById('mergeCount');
+          btn.disabled = checked.length < 2;
+          count.textContent = checked.length > 0 ? checked.length + ' selected' : '';
+        }
+        </script>
       <% } %>
 
     <% } else if (tab === 'payments') { %>

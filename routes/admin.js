@@ -346,6 +346,29 @@ router.get('/enrollments', requireAuth, asyncHandler(async (req, res) => {
   res.render('admin/enrollments', { tab, enrollments, programs, selectedProgramId: programId, weeks, summaryWeeks });
 }));
 
+router.post('/enrollments/merge', requireAuth, asyncHandler(async (req, res) => {
+  let { merge_ids } = req.body;
+  if (!merge_ids) {
+    req.session.flash = { type: 'error', msg: 'No registrations selected.' };
+    return res.redirect(303, req.get('Referer') || '/admin/enrollments?tab=registrations');
+  }
+  // Handle single checkbox (string vs array)
+  if (typeof merge_ids === 'string') merge_ids = [merge_ids];
+  if (merge_ids.length < 2) {
+    req.session.flash = { type: 'error', msg: 'Select at least 2 registrations to merge.' };
+    return res.redirect(303, req.get('Referer') || '/admin/enrollments?tab=registrations');
+  }
+
+  try {
+    await db.mergeRegistrations(merge_ids);
+    req.session.flash = { type: 'success', msg: `Merged ${merge_ids.length} registrations.` };
+  } catch (err) {
+    console.error('Merge error:', err);
+    req.session.flash = { type: 'error', msg: 'Merge failed: ' + err.message };
+  }
+  res.redirect(303, req.get('Referer') || '/admin/enrollments?tab=registrations');
+}));
+
 router.post('/enrollments/remove-date', requireAuth, asyncHandler(async (req, res) => {
   const { registration_id, date } = req.body;
   await db.removeDateFromRegistration(registration_id, date);

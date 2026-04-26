@@ -349,6 +349,75 @@ async function deleteRegistration(id) {
   await client.send(new DeleteCommand({ TableName: T.registrations, Key: { id } }));
 }
 
+async function mergeRegistrations(ids) {
+  // Fetch all registrations
+  const regs = [];
+  for (const id of ids) {
+    const { Item } = await client.send(new GetCommand({ TableName: T.registrations, Key: { id } }));
+    if (Item) regs.push(Item);
+  }
+  if (regs.length < 2) throw new Error('Not enough valid registrations to merge.');
+
+  // Sort by createdAt — keep the earliest as the primary
+  regs.sort((a, b) => (a.createdAt || '').localeCompare(b.createdAt || ''));
+  const primary = regs[0];
+  const others = regs.slice(1);
+
+  // Merge dates (dedup)
+  const allDates = new Set(primary.selectedDates || []);
+  for (const r of others) {
+    (r.selectedDates || []).forEach(d => allDates.add(d));
+  }
+
+  // Merge children (dedup by name+dob)
+  const childKey = (c) => (c.name || '') + '|' + (c.dob || '');
+  const childMap = new Map();
+  for (const c of (primary.children || [])) childMap.set(childKey(c), c);
+  for (const r of others) {
+    for (const c of (r.children || [])) {
+      if (!childMap.has(childKey(c))) childMap.set(childKey(c), c);
+    }
+  }
+
+  // Merge notes
+  const allNotes = [primary.notes, ...others.map(r => r.notes)].filter(Boolean);
+  const mergedNotes = [...new Set(allNotes)].join('; ') || null;
+
+  // Update primary with merged data
+  await client.send(new UpdateCommand({
+    TableName: T.registrations,
+    Key: { id: primary.id },
+    UpdateExpression: 'SET selectedDates = :dates, children = :children, notes = :notes',
+    ExpressionAttributeValues: {
+      ':dates': Array.from(allDates).sort(),
+      ':children': Array.from(childMap.values()),
+      ':notes': mergedNotes,
+    },
+  }));
+
+  // Update email queue entries: point them all to the primary registration
+  const { Items: emails } = await client.send(new ScanCommand({
+    TableName: T.emails,
+    FilterExpression: 'registrationId IN (' + others.map((_, i) => ':rid' + i).join(',') + ')',
+    ExpressionAttributeValues: Object.fromEntries(others.map((r, i) => [':rid' + i, r.id])),
+  }));
+  if (emails) {
+    for (const em of emails) {
+      await client.send(new UpdateCommand({
+        TableName: T.emails,
+        Key: { id: em.id },
+        UpdateExpression: 'SET registrationId = :rid',
+        ExpressionAttributeValues: { ':rid': primary.id },
+      }));
+    }
+  }
+
+  // Delete the other registrations (without decrementing date counts since dates are being kept)
+  for (const r of others) {
+    await client.send(new DeleteCommand({ TableName: T.registrations, Key: { id: r.id } }));
+  }
+}
+
 async function removeDateFromRegistration(id, date) {
   const { Item } = await client.send(new GetCommand({
     TableName: T.registrations, Key: { id },
@@ -607,7 +676,7 @@ module.exports = {
   updateProgramDescription, updateProgramRegDescription, updateProgramHero, addProgramMedia, removeProgramMedia,
   getDatesByProgram, addDates, updateDateCapacity, removeDate,
   createRegistration, getEnrollments, getRegistrationsByProgram,
-  countRegistrationsByProgram, deleteRegistration, removeDateFromRegistration, updatePayment,
+  countRegistrationsByProgram, deleteRegistration, mergeRegistrations, removeDateFromRegistration, updatePayment,
   getAllEmails, getEmail, updateEmailDraft, addEmailAttachment, removeEmailAttachment,
   markEmailSent, markEmailFailed,
   countPendingEmails, getDashboardStats,
