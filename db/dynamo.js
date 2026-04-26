@@ -587,7 +587,7 @@ async function updatePayment(id, paymentDate, paymentAmount, paymentNotes) {
 
 async function getAllEmails() {
   const { Items } = await client.send(new ScanCommand({ TableName: T.emails }));
-  return (Items || []).sort((a, b) => {
+  return (Items || []).filter(e => !e.deletedAt).sort((a, b) => {
     const statusOrder = { draft: 0, sent: 1, failed: 2 };
     const sa = statusOrder[a.status] ?? 3;
     const sb = statusOrder[b.status] ?? 3;
@@ -697,7 +697,7 @@ async function createInquiry(data) {
 
 async function getAllInquiries() {
   const { Items } = await client.send(new ScanCommand({ TableName: T.inquiries }));
-  return (Items || []).sort((a, b) => {
+  return (Items || []).filter(i => !i.deletedAt).sort((a, b) => {
     const statusOrder = { 'new': 0, replied: 1 };
     const sa = statusOrder[a.status] ?? 2;
     const sb = statusOrder[b.status] ?? 2;
@@ -723,6 +723,19 @@ async function replyToInquiry(id, replyText) {
       ':replied': 'replied',
       ':reply': replyText,
       ':now': new Date().toISOString(),
+    },
+  }));
+}
+
+async function softDeleteMessage(type, id, adminUser) {
+  const table = type === 'email' ? T.emails : T.inquiries;
+  await client.send(new UpdateCommand({
+    TableName: table,
+    Key: { id },
+    UpdateExpression: 'SET deletedAt = :ts, deletedBy = :who',
+    ExpressionAttributeValues: {
+      ':ts': new Date().toISOString(),
+      ':who': adminUser || 'admin',
     },
   }));
 }
@@ -805,7 +818,7 @@ module.exports = {
   getAllEmails, getEmail, updateEmailDraft, addEmailAttachment, removeEmailAttachment,
   markEmailSent, markEmailFailed,
   countPendingEmails, getDashboardStats,
-  createInquiry, getAllInquiries, getInquiry, replyToInquiry, countNewInquiries,
+  createInquiry, getAllInquiries, getInquiry, replyToInquiry, countNewInquiries, softDeleteMessage,
   getEmailsByDate, getEmailsByWeek, getAllEmails_addresses,
   getPage, savePage,
 };

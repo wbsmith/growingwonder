@@ -615,6 +615,16 @@ router.get('/messages', requireAuth, asyncHandler(async (req, res) => {
   res.render('admin/messages', { tab, emails, pendingEmails, inquiries, newInquiries, programs, programWeeks });
 }));
 
+// Soft delete (emails and inquiries)
+router.post('/messages/delete', requireAuth, asyncHandler(async (req, res) => {
+  const { type, item_id } = req.body;
+  const adminUser = process.env.ADMIN_USER || 'admin';
+  await db.softDeleteMessage(type, item_id, adminUser);
+  const tab = type === 'email' ? 'confirmations' : 'inquiries';
+  req.session.flash = { type: 'success', msg: 'Deleted.' };
+  res.redirect(303, '/admin/messages?tab=' + tab);
+}));
+
 // Confirmation email edit/send
 router.get('/messages/emails/:id/edit', requireAuth, asyncHandler(async (req, res) => {
   const email = await db.getEmail(req.params.id);
