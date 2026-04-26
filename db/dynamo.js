@@ -395,14 +395,61 @@ async function mergeRegistrations(ids) {
     },
   }));
 
-  // Update email queue entries: point them all to the primary registration
-  const { Items: emails } = await client.send(new ScanCommand({
+  // Merge email queue: keep the primary's draft, reassign others, merge draft bodies
+  const allRegIds = regs.map(r => r.id);
+  const { Items: allEmails } = await client.send(new ScanCommand({
     TableName: T.emails,
-    FilterExpression: 'registrationId IN (' + others.map((_, i) => ':rid' + i).join(',') + ')',
-    ExpressionAttributeValues: Object.fromEntries(others.map((r, i) => [':rid' + i, r.id])),
+    FilterExpression: allRegIds.map((_, i) => 'registrationId = :rid' + i).join(' OR '),
+    ExpressionAttributeValues: Object.fromEntries(allRegIds.map((rid, i) => [':rid' + i, rid])),
   }));
-  if (emails) {
-    for (const em of emails) {
+
+  if (allEmails && allEmails.length > 0) {
+    // Find draft emails to merge into one combined draft
+    const drafts = allEmails.filter(e => e.status === 'draft');
+    const sent = allEmails.filter(e => e.status !== 'draft');
+
+    if (drafts.length > 1) {
+      // Keep the first draft, merge the dates into its body, delete the rest
+      const keepDraft = drafts[0];
+      const mergedDates = Array.from(allDates).sort().map(d => {
+        const dt = new Date(d + 'T00:00:00');
+        return dt.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+      }).join('\n  ');
+      const childNames = Array.from(childMap.values()).map(c => c.name);
+      const childListStr = childNames.length === 1 ? childNames[0]
+        : childNames.slice(0, -1).join(', ') + ' and ' + childNames[childNames.length - 1];
+
+      // Recompose the body with merged dates
+      const site = require('../lib/site');
+      const newBody = `Dear ${primary.parentName},\n\nThank you for registering ${childListStr} for ${keepDraft.programName || 'our program'}!\n\nEnrolled dates:\n  ${mergedDates}\n\nWe're excited to have ${childListStr} join us. Please arrive by 8:45 AM on the first day. Don't forget sunscreen, a water bottle, and a sense of adventure!\n\nIf you have any questions, reply to this email or call us at ${site.phone}.\n\nWarm regards,\n${site.name} Team`;
+
+      await client.send(new UpdateCommand({
+        TableName: T.emails,
+        Key: { id: keepDraft.id },
+        UpdateExpression: 'SET registrationId = :rid, body = :body, childName = :cn',
+        ExpressionAttributeValues: {
+          ':rid': primary.id,
+          ':body': newBody,
+          ':cn': childNames.join(', '),
+        },
+      }));
+
+      // Delete other drafts
+      for (let i = 1; i < drafts.length; i++) {
+        await client.send(new DeleteCommand({ TableName: T.emails, Key: { id: drafts[i].id } }));
+      }
+    } else if (drafts.length === 1) {
+      // Just reassign the single draft
+      await client.send(new UpdateCommand({
+        TableName: T.emails,
+        Key: { id: drafts[0].id },
+        UpdateExpression: 'SET registrationId = :rid',
+        ExpressionAttributeValues: { ':rid': primary.id },
+      }));
+    }
+
+    // Reassign sent emails to primary
+    for (const em of sent) {
       await client.send(new UpdateCommand({
         TableName: T.emails,
         Key: { id: em.id },
@@ -412,10 +459,88 @@ async function mergeRegistrations(ids) {
     }
   }
 
-  // Delete the other registrations (without decrementing date counts since dates are being kept)
+  // Delete the other registrations
   for (const r of others) {
     await client.send(new DeleteCommand({ TableName: T.registrations, Key: { id: r.id } }));
   }
+}
+
+async function autoMergeRegistrations(field) {
+  // Fetch all registrations
+  const { Items } = await client.send(new ScanCommand({ TableName: T.registrations }));
+  if (!Items || Items.length < 2) return 0;
+
+  // Group by field
+  const groups = {};
+  for (const r of Items) {
+    let keys = [];
+    if (field === 'email' || field === 'both') {
+      if (r.parentEmail) keys.push('email:' + r.parentEmail.toLowerCase());
+    }
+    if (field === 'phone' || field === 'both') {
+      if (r.parentPhone) {
+        const digits = r.parentPhone.replace(/\D/g, '');
+        if (digits) keys.push('phone:' + digits);
+      }
+    }
+    for (const key of keys) {
+      if (!groups[key]) groups[key] = [];
+      // Avoid adding the same registration twice (when matching on 'both')
+      if (!groups[key].some(g => g.id === r.id)) {
+        groups[key].push(r);
+      }
+    }
+  }
+
+  // For 'both' mode, merge groups that share any registration
+  // (e.g., if reg A matches by email with B, and B matches by phone with C, merge all three)
+  if (field === 'both') {
+    const regToGroup = new Map(); // reg.id -> group key
+    const mergedGroups = new Map(); // canonical key -> Set of reg ids
+
+    for (const [key, regs] of Object.entries(groups)) {
+      if (regs.length < 2) continue;
+      // Find if any reg is already in a group
+      let existingKey = null;
+      for (const r of regs) {
+        if (regToGroup.has(r.id)) { existingKey = regToGroup.get(r.id); break; }
+      }
+      const groupKey = existingKey || key;
+      if (!mergedGroups.has(groupKey)) mergedGroups.set(groupKey, new Set());
+      for (const r of regs) {
+        mergedGroups.get(groupKey).add(r.id);
+        regToGroup.set(r.id, groupKey);
+      }
+    }
+
+    // Build final groups
+    const finalGroups = {};
+    for (const [key, ids] of mergedGroups.entries()) {
+      if (ids.size >= 2) {
+        finalGroups[key] = Items.filter(r => ids.has(r.id));
+      }
+    }
+    let count = 0;
+    for (const regs of Object.values(finalGroups)) {
+      await mergeRegistrations(regs.map(r => r.id));
+      count++;
+    }
+    return count;
+  }
+
+  // Simple mode: merge each group with 2+ registrations
+  let count = 0;
+  const merged = new Set();
+  for (const regs of Object.values(groups)) {
+    if (regs.length < 2) continue;
+    // Skip if any reg was already merged in a previous group
+    const ids = regs.map(r => r.id).filter(id => !merged.has(id));
+    if (ids.length < 2) continue;
+    await mergeRegistrations(ids);
+    ids.forEach(id => merged.add(id));
+    count++;
+  }
+  return count;
 }
 
 async function removeDateFromRegistration(id, date) {
@@ -676,7 +801,7 @@ module.exports = {
   updateProgramDescription, updateProgramRegDescription, updateProgramHero, addProgramMedia, removeProgramMedia,
   getDatesByProgram, addDates, updateDateCapacity, removeDate,
   createRegistration, getEnrollments, getRegistrationsByProgram,
-  countRegistrationsByProgram, deleteRegistration, mergeRegistrations, removeDateFromRegistration, updatePayment,
+  countRegistrationsByProgram, deleteRegistration, mergeRegistrations, autoMergeRegistrations, removeDateFromRegistration, updatePayment,
   getAllEmails, getEmail, updateEmailDraft, addEmailAttachment, removeEmailAttachment,
   markEmailSent, markEmailFailed,
   countPendingEmails, getDashboardStats,

@@ -25,12 +25,17 @@
         <p style="color: var(--text-light);">No registrations yet.</p>
       <% } else { %>
         <form method="POST" action="/admin/enrollments/merge" id="mergeForm">
-          <div style="margin-bottom: 12px;">
+          <input type="hidden" name="merge_mode" id="mergeMode" value="selected">
+          <input type="hidden" name="merge_field" id="mergeField" value="">
+          <div style="margin-bottom: 12px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
             <button type="submit" class="btn btn-outline btn-sm" id="mergeBtn" disabled
-              onclick="return confirm('Merge selected registrations? Dates and children will be combined into the earliest registration.')">
+              onclick="return confirm('Merge selected registrations? Dates, children, and confirmation emails will be combined.')">
               Merge Selected
             </button>
-            <span id="mergeCount" style="font-size: 0.8rem; color: var(--text-light); margin-left: 8px;"></span>
+            <button type="button" class="btn btn-outline btn-sm" onclick="openAutoMergeModal()">
+              Auto-Merge Duplicates
+            </button>
+            <span id="mergeCount" style="font-size: 0.8rem; color: var(--text-light);"></span>
           </div>
         <table class="data-table">
           <thead>
@@ -89,6 +94,36 @@
           </tbody>
         </table>
         </form>
+
+        <!-- Auto-merge modal -->
+        <div id="autoMergeModal" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.4); z-index: 100; align-items: center; justify-content: center;">
+          <div style="background: var(--white); border-radius: 12px; padding: 32px; max-width: 400px; width: 90%; box-shadow: 0 8px 30px rgba(0,0,0,0.2);">
+            <h3 style="color: var(--green-dark); margin-bottom: 16px;">Auto-Merge Duplicates</h3>
+            <p style="font-size: 0.85rem; color: var(--text-light); margin-bottom: 16px;">
+              Automatically merge registrations that share the same contact info. Dates, children, and confirmation emails will be combined.
+            </p>
+            <div class="form-group">
+              <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-weight: 400;">
+                <input type="radio" name="auto_merge_field" value="email" checked> Match by email address
+              </label>
+            </div>
+            <div class="form-group">
+              <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-weight: 400;">
+                <input type="radio" name="auto_merge_field" value="phone"> Match by phone number
+              </label>
+            </div>
+            <div class="form-group">
+              <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-weight: 400;">
+                <input type="radio" name="auto_merge_field" value="both"> Match by email OR phone
+              </label>
+            </div>
+            <div style="display: flex; gap: 12px; margin-top: 16px;">
+              <button type="button" class="btn btn-green btn-sm" onclick="submitAutoMerge()">Merge</button>
+              <button type="button" class="btn btn-outline btn-sm" onclick="closeAutoMergeModal()">Cancel</button>
+            </div>
+          </div>
+        </div>
+
         <script>
         function toggleAll(el) {
           document.querySelectorAll('.merge-check').forEach(c => { c.checked = el.checked; });
@@ -100,6 +135,22 @@
           const count = document.getElementById('mergeCount');
           btn.disabled = checked.length < 2;
           count.textContent = checked.length > 0 ? checked.length + ' selected' : '';
+        }
+        function openAutoMergeModal() {
+          document.getElementById('autoMergeModal').style.display = 'flex';
+        }
+        function closeAutoMergeModal() {
+          document.getElementById('autoMergeModal').style.display = 'none';
+        }
+        document.getElementById('autoMergeModal').addEventListener('click', function(e) {
+          if (e.target === this) closeAutoMergeModal();
+        });
+        function submitAutoMerge() {
+          const field = document.querySelector('input[name="auto_merge_field"]:checked').value;
+          if (!confirm('Auto-merge all duplicate registrations matching by ' + field + '?')) return;
+          document.getElementById('mergeMode').value = 'auto';
+          document.getElementById('mergeField').value = field;
+          document.getElementById('mergeForm').submit();
         }
         </script>
       <% } %>

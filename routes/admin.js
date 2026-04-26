@@ -347,16 +347,31 @@ router.get('/enrollments', requireAuth, asyncHandler(async (req, res) => {
 }));
 
 router.post('/enrollments/merge', requireAuth, asyncHandler(async (req, res) => {
+  const { merge_mode, merge_field } = req.body;
   let { merge_ids } = req.body;
+  const redirectUrl = req.get('Referer') || '/admin/enrollments?tab=registrations';
+
+  if (merge_mode === 'auto') {
+    // Auto-merge: group all registrations by the selected field
+    try {
+      const count = await db.autoMergeRegistrations(merge_field || 'email');
+      req.session.flash = { type: 'success', msg: count > 0 ? `Auto-merged ${count} group(s).` : 'No duplicates found to merge.' };
+    } catch (err) {
+      console.error('Auto-merge error:', err);
+      req.session.flash = { type: 'error', msg: 'Auto-merge failed: ' + err.message };
+    }
+    return res.redirect(303, redirectUrl);
+  }
+
+  // Manual merge
   if (!merge_ids) {
     req.session.flash = { type: 'error', msg: 'No registrations selected.' };
-    return res.redirect(303, req.get('Referer') || '/admin/enrollments?tab=registrations');
+    return res.redirect(303, redirectUrl);
   }
-  // Handle single checkbox (string vs array)
   if (typeof merge_ids === 'string') merge_ids = [merge_ids];
   if (merge_ids.length < 2) {
     req.session.flash = { type: 'error', msg: 'Select at least 2 registrations to merge.' };
-    return res.redirect(303, req.get('Referer') || '/admin/enrollments?tab=registrations');
+    return res.redirect(303, redirectUrl);
   }
 
   try {
@@ -366,7 +381,7 @@ router.post('/enrollments/merge', requireAuth, asyncHandler(async (req, res) => 
     console.error('Merge error:', err);
     req.session.flash = { type: 'error', msg: 'Merge failed: ' + err.message };
   }
-  res.redirect(303, req.get('Referer') || '/admin/enrollments?tab=registrations');
+  res.redirect(303, redirectUrl);
 }));
 
 router.post('/enrollments/remove-date', requireAuth, asyncHandler(async (req, res) => {
