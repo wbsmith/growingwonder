@@ -358,6 +358,12 @@ async function mergeRegistrations(ids) {
   }
   if (regs.length < 2) throw new Error('Not enough valid registrations to merge.');
 
+  // Refuse cross-program merges — a registration is intrinsically per-program.
+  const programIds = new Set(regs.map(r => r.programId));
+  if (programIds.size > 1) {
+    throw new Error('Cannot merge registrations from different programs.');
+  }
+
   // Sort by createdAt — keep the earliest as the primary
   regs.sort((a, b) => (a.createdAt || '').localeCompare(b.createdAt || ''));
   const primary = regs[0];
@@ -470,17 +476,18 @@ async function autoMergeRegistrations(field) {
   const { Items } = await client.send(new ScanCommand({ TableName: T.registrations }));
   if (!Items || Items.length < 2) return 0;
 
-  // Group by field
+  // Group by field, scoped to programId so duplicates only merge within the same program.
   const groups = {};
   for (const r of Items) {
+    if (!r.programId) continue;
     let keys = [];
     if (field === 'email' || field === 'both') {
-      if (r.parentEmail) keys.push('email:' + r.parentEmail.toLowerCase());
+      if (r.parentEmail) keys.push('email:' + r.parentEmail.toLowerCase() + '|prog:' + r.programId);
     }
     if (field === 'phone' || field === 'both') {
       if (r.parentPhone) {
         const digits = r.parentPhone.replace(/\D/g, '');
-        if (digits) keys.push('phone:' + digits);
+        if (digits) keys.push('phone:' + digits + '|prog:' + r.programId);
       }
     }
     for (const key of keys) {
