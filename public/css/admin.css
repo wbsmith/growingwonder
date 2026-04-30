@@ -73,6 +73,14 @@
   border-radius: var(--radius);
   padding: 24px;
   box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+  display: block;
+  color: inherit;
+  text-decoration: none;
+  transition: box-shadow 0.15s ease, transform 0.15s ease;
+}
+a.stat-card:hover {
+  box-shadow: 0 4px 14px rgba(0,0,0,0.10);
+  transform: translateY(-1px);
 }
 .stat-card .number {
   font-size: 2rem;

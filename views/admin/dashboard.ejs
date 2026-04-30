@@ -8,19 +8,19 @@
 
     <div class="stats-grid">
       <% stats.forEach(s => { %>
-        <div class="stat-card">
+        <a class="stat-card" href="/admin/enrollments?tab=registrations&program=<%= s.id %>">
           <div class="number"><%= s.total_registrations %></div>
           <div class="label"><%= s.name %> registrations</div>
-        </div>
+        </a>
       <% }) %>
-      <div class="stat-card">
+      <a class="stat-card" href="/admin/messages?tab=confirmations">
         <div class="number"><%= pendingEmails %></div>
         <div class="label">Emails pending review</div>
-      </div>
-      <div class="stat-card">
+      </a>
+      <a class="stat-card" href="/admin/messages?tab=inquiries">
         <div class="number"><%= newInquiries %></div>
         <div class="label">New inquiries</div>
-      </div>
+      </a>
     </div>
   </main>
 </div>
