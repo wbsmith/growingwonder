@@ -1,3 +1,34 @@
+<script>
+(function() {
+  var TOKEN = <%- JSON.stringify(typeof csrfToken !== 'undefined' ? csrfToken : '') %>;
+  if (!TOKEN) return;
+  function injectIntoForms() {
+    document.querySelectorAll('form[method="POST"], form[method="post"]').forEach(function(form) {
+      if (!form.querySelector('input[name="_csrf"]')) {
+        var i = document.createElement('input');
+        i.type = 'hidden'; i.name = '_csrf'; i.value = TOKEN;
+        form.appendChild(i);
+      }
+    });
+  }
+  var origFetch = window.fetch;
+  window.fetch = function(input, init) {
+    init = init || {};
+    var method = (init.method || (typeof input === 'object' && input && input.method) || 'GET').toUpperCase();
+    var url = typeof input === 'string' ? input : (input && input.url) || '';
+    if (method !== 'GET' && method !== 'HEAD' && url.indexOf('/admin') === 0) {
+      init.headers = Object.assign({}, init.headers || {}, { 'X-CSRF-Token': TOKEN });
+    }
+    return origFetch.call(this, input, init);
+  };
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', injectIntoForms);
+  } else {
+    injectIntoForms();
+  }
+  new MutationObserver(injectIntoForms).observe(document.documentElement, { childList: true, subtree: true });
+})();
+</script>
 <aside class="admin-sidebar">
   <div class="brand"><a href="/admin"><%= site.name %></a></div>
   <nav>

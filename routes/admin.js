@@ -2,16 +2,19 @@ const express = require('express');
 const router = express.Router();
 const db = require('../db/dynamo');
 const { validateAdmin, requireAuth } = require('../lib/auth');
+const { loginLimiter, csrfMiddleware } = require('../lib/security');
 const mailer = require('../lib/mailer');
 const storage = require('../lib/storage');
 
 const asyncHandler = fn => (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
 
+router.use(csrfMiddleware);
+
 router.get('/login', (req, res) => {
   res.render('admin/login');
 });
 
-router.post('/login', (req, res) => {
+router.post('/login', loginLimiter, (req, res) => {
   const result = validateAdmin(req.body.username, req.body.pw);
   if (result.ok) {
     req.session.isAdmin = true;

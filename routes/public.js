@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const db = require('../db/dynamo');
 const site = require('../lib/site');
+const { publicFormLimiter } = require('../lib/security');
 
 const asyncHandler = fn => (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
 
@@ -61,7 +62,7 @@ router.get('/register/:slug?', asyncHandler(async (req, res) => {
   res.render('register', { programs, selectedProgramId });
 }));
 
-router.post('/register', asyncHandler(async (req, res) => {
+router.post('/register', publicFormLimiter, asyncHandler(async (req, res) => {
   const {
     program_id, parent_name, parent_email, parent_phone,
     notes, selected_dates,
@@ -175,7 +176,7 @@ ${site.name} Team`;
   }
 }));
 
-router.post('/inquiry', asyncHandler(async (req, res) => {
+router.post('/inquiry', publicFormLimiter, asyncHandler(async (req, res) => {
   const { name, email, phone, subject, message } = req.body;
 
   if (!subject || !message) {
