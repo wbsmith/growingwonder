@@ -52,7 +52,11 @@
     </form>
 
     <!-- Body Content -->
-    <h2 style="margin-bottom: 12px;">Content</h2>
+    <% const isHome = page.slug === 'home'; %>
+    <h2 style="margin-bottom: 4px;"><%= isHome ? 'Testimonials' : 'Content' %></h2>
+    <% if (isHome) { %>
+      <p style="color: var(--text-light); font-size: 0.9rem; margin-bottom: 12px;">Renders as the "What Families Are Saying" section between the programs and values blocks. Hidden if empty.</p>
+    <% } %>
     <link href="https://cdn.jsdelivr.net/npm/quill@2/dist/quill.snow.css" rel="stylesheet">
     <form method="POST" action="/admin/pages/<%= page.slug %>/content" id="bodyForm" style="margin-bottom: 32px;">
       <div id="editor" style="min-height: 300px; background: var(--white); border-radius: 0 0 var(--radius) var(--radius);"></div>

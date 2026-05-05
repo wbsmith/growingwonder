@@ -36,6 +36,15 @@
   </div>
 </section>
 
+<% if (page.body && page.body.trim() && page.body.trim() !== '<p><br></p>') { %>
+<section class="testimonials-section">
+  <div class="testimonials-inner">
+    <h2>What Families Are Saying</h2>
+    <div class="testimonials-content"><%- page.body %></div>
+  </div>
+</section>
+<% } %>
+
 <section class="values-section">
   <div class="values-grid">
     <div class="value-item">

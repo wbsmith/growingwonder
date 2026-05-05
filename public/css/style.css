@@ -179,6 +179,39 @@ a:hover { color: var(--green-dark); }
   margin-bottom: 24px;
 }
 
+/* ---------- TESTIMONIALS ---------- */
+.testimonials-section {
+  background: var(--white);
+  padding: 80px 20px;
+}
+.testimonials-inner {
+  max-width: 800px;
+  margin: 0 auto;
+  text-align: center;
+}
+.testimonials-section h2 {
+  font-size: 2rem;
+  margin-bottom: 32px;
+  color: var(--green-dark);
+}
+.testimonials-content {
+  color: var(--text);
+  font-size: 1.05rem;
+  line-height: 1.7;
+}
+.testimonials-content p {
+  margin-bottom: 16px;
+}
+.testimonials-content p:last-child { margin-bottom: 0; }
+.testimonials-content em { color: var(--green-dark); }
+.testimonials-content blockquote {
+  margin: 24px 0;
+  padding-left: 20px;
+  border-left: 3px solid var(--green-mid);
+  font-style: italic;
+  color: var(--text-light);
+}
+
 /* ---------- VALUES / FEATURES ---------- */
 .values-section {
   background: var(--sand);
