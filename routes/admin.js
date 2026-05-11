@@ -125,6 +125,9 @@ router.post('/pages/:slug/upload-url', requireAuth, asyncHandler(async (req, res
 router.get('/programs/:id/edit', requireAuth, asyncHandler(async (req, res) => {
   const program = await db.getProgram(req.params.id);
   if (!program) return res.status(404).send('Program not found');
+  // Attach a materialized config so the admin form renders the current effective
+  // values (whether they live in the new formConfig field or legacy flat fields).
+  program.formConfig = db.materializeFormConfig(program);
   res.render('admin/program_edit', { program });
 }));
 
@@ -157,21 +160,36 @@ router.post('/programs/:id/custom-questions', requireAuth, asyncHandler(async (r
   res.redirect(303, '/admin/programs/' + req.params.id + '/edit');
 }));
 
-router.post('/programs/:id/form-labels', requireAuth, asyncHandler(async (req, res) => {
-  await db.updateProgramFormLabels(req.params.id, {
-    participantsHeading: req.body.participants_heading,
-    participantSingularLabel: req.body.participant_singular_label,
-    contactHeading: req.body.contact_heading,
-    notesPrompt: req.body.notes_prompt,
-    singleParticipantOnly: req.body.single_participant_only === 'on',
-    emailLabel: req.body.email_label,
-    phoneLabel: req.body.phone_label,
-    dobLabel: req.body.dob_label,
-    healthcareLabel: req.body.healthcare_label,
-    allergiesLabel: req.body.allergies_label,
-    showProgramSelector: req.body.show_program_selector === 'on',
+router.post('/programs/:id/form-config', requireAuth, asyncHandler(async (req, res) => {
+  const b = req.body;
+  const fieldFromBody = (key, defaultLabel) => ({
+    show: b[`${key}_show`] === 'on',
+    required: b[`${key}_required`] === 'on',
+    label: (b[`${key}_label`] || '').trim() || defaultLabel,
   });
-  req.session.flash = { type: 'success', msg: 'Form labels updated.' };
+  const formConfig = {
+    pageTitlePrefix: (b.page_title_prefix || '').trim() || 'Registration',
+    pageLead: (b.page_lead || '').trim() || null,
+    programSelector: { show: b.show_program_selector === 'on' },
+    contactName:  fieldFromBody('contact_name',  'Parent/Guardian Name'),
+    contactEmail: fieldFromBody('contact_email', 'Email'),
+    contactPhone: fieldFromBody('contact_phone', 'Phone'),
+    participants: {
+      sectionHeading: (b.participants_heading || '').trim() || 'Children',
+      singularLabel: (b.participant_singular_label || '').trim() || 'Child',
+      singleOnly: b.single_participant_only === 'on',
+      fields: {
+        name:       { show: b.pname_show === 'on',       required: b.pname_required === 'on',       label: (b.pname_label || '').trim() || null },
+        dob:        fieldFromBody('pdob',        'Date of Birth'),
+        healthcare: fieldFromBody('phealthcare', 'Healthcare Provider'),
+        allergies:  fieldFromBody('pallergies',  'Allergies'),
+      },
+    },
+    notes: fieldFromBody('notes', 'Tell us a little something about your child'),
+    terms: { show: b.terms_show === 'on', required: b.terms_required === 'on', label: null },
+  };
+  await db.updateProgramFormConfig(req.params.id, formConfig);
+  req.session.flash = { type: 'success', msg: 'Registration form updated.' };
   res.redirect(303, '/admin/programs/' + req.params.id + '/edit');
 }));
 

@@ -2,13 +2,36 @@
 
 <%- include('_nav') %>
 
+<%
+  // Compute initial form config — either from the selected program or a safe default.
+  const initialFc = selectedProgram ? selectedProgram.formConfig : {
+    pageTitlePrefix: 'Registration',
+    pageLead: null,
+    programSelector: { show: true },
+    contactName:  { show: true, required: true, label: 'Parent/Guardian Name' },
+    contactEmail: { show: true, required: true, label: 'Email' },
+    contactPhone: { show: true, required: true, label: 'Phone' },
+    participants: {
+      sectionHeading: 'Children', singularLabel: 'Child', singleOnly: false,
+      fields: {
+        name: { show: true, required: true, label: null },
+        dob: { show: true, required: true, label: 'Date of Birth' },
+        healthcare: { show: true, required: false, label: 'Healthcare Provider' },
+        allergies: { show: true, required: false, label: 'Allergies' },
+      },
+    },
+    notes: { show: true, required: false, label: 'Tell us a little something about your child' },
+    terms: { show: true, required: true, label: null },
+  };
+  function reqStar(f) { return f.required ? ' <span class="req">*</span>' : ''; }
+  function fieldStyle(f) { return f.show ? '' : 'display: none;'; }
+  const participantNameLabel = initialFc.participants.fields.name.label || (initialFc.participants.singularLabel + "'s Name");
+  const pageTitle = (hideSelector && selectedProgram) ? `${initialFc.pageTitlePrefix}: ${selectedProgram.name}` : initialFc.pageTitlePrefix;
+  const leadText = initialFc.pageLead || (!hideSelector ? 'Select a program and dates, then fill in your information below.' : null);
+%>
 <div class="form-page">
-  <% if (hideSelector && selectedProgram) { %>
-    <h1>Registration: <%= selectedProgram.name %></h1>
-  <% } else { %>
-    <h1>Registration</h1>
-    <p class="lead">Select a program and dates, then fill in your information below.</p>
-  <% } %>
+  <h1 id="pageTitle"><%= pageTitle %></h1>
+  <p id="pageLead" class="lead" style="<%= leadText ? '' : 'display: none;' %>"><%= leadText || '' %></p>
 
   <form method="POST" action="/register" id="regForm" novalidate>
     <% if (hideSelector && selectedProgram) { %>
@@ -40,59 +63,59 @@
     <input type="hidden" name="selected_dates" id="selectedDates">
 
     <div class="form-fields-narrow">
-    <div class="form-row">
-      <div class="form-group">
-        <label id="contactNameLabel">Parent/Guardian Name <span class="req">*</span></label>
-        <input type="text" name="parent_name" required>
+    <div class="form-row" id="contactRow">
+      <div class="form-group" data-field="contactName" style="<%= fieldStyle(initialFc.contactName) %>">
+        <label id="contactNameLabel"><%= initialFc.contactName.label %><%- reqStar(initialFc.contactName) %></label>
+        <input type="text" name="parent_name" <%= initialFc.contactName.required ? 'required' : '' %>>
       </div>
-      <div class="form-group">
-        <label id="emailLabel">Email <span class="req">*</span></label>
-        <input type="email" name="parent_email" id="parentEmail" required
+      <div class="form-group" data-field="contactEmail" style="<%= fieldStyle(initialFc.contactEmail) %>">
+        <label id="emailLabel"><%= initialFc.contactEmail.label %><%- reqStar(initialFc.contactEmail) %></label>
+        <input type="email" name="parent_email" id="parentEmail"
           pattern="[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}"
-          title="Please enter a valid email address">
+          title="Please enter a valid email address" <%= initialFc.contactEmail.required ? 'required' : '' %>>
         <span class="field-error" id="emailError"></span>
       </div>
     </div>
 
-    <div class="form-group">
-      <label id="phoneLabel">Phone <span class="req">*</span></label>
-      <input type="tel" name="parent_phone" id="parentPhone" required
+    <div class="form-group" data-field="contactPhone" style="<%= fieldStyle(initialFc.contactPhone) %>">
+      <label id="phoneLabel"><%= initialFc.contactPhone.label %><%- reqStar(initialFc.contactPhone) %></label>
+      <input type="tel" name="parent_phone" id="parentPhone"
         placeholder="(555) 123-4567"
-        title="Please enter a 10-digit US phone number">
+        title="Please enter a 10-digit US phone number" <%= initialFc.contactPhone.required ? 'required' : '' %>>
       <span class="field-error" id="phoneError"></span>
     </div>
 
     <div id="childrenSection">
-      <h3 id="participantsHeading" style="color: var(--green-dark); margin-bottom: 10px;">Children</h3>
+      <h3 id="participantsHeading" style="color: var(--green-dark); margin-bottom: 10px;"><%= initialFc.participants.sectionHeading %></h3>
       <div class="child-entry" data-index="0">
         <div class="form-row">
-          <div class="form-group">
-            <label class="participant-name-label">Child's Name <span class="req">*</span></label>
-            <input type="text" name="children[0][name]" required>
+          <div class="form-group" data-pfield="name" style="<%= fieldStyle(initialFc.participants.fields.name) %>">
+            <label class="participant-name-label"><%= participantNameLabel %><%- reqStar(initialFc.participants.fields.name) %></label>
+            <input type="text" name="children[0][name]" <%= initialFc.participants.fields.name.required ? 'required' : '' %>>
           </div>
-          <div class="form-group">
-            <label class="dob-label">Date of Birth <span class="req">*</span></label>
-            <input type="date" name="children[0][dob]" required>
+          <div class="form-group" data-pfield="dob" style="<%= fieldStyle(initialFc.participants.fields.dob) %>">
+            <label class="dob-label"><%= initialFc.participants.fields.dob.label %><%- reqStar(initialFc.participants.fields.dob) %></label>
+            <input type="date" name="children[0][dob]" <%= initialFc.participants.fields.dob.required ? 'required' : '' %>>
           </div>
         </div>
         <div class="form-row">
-          <div class="form-group">
-            <label class="healthcare-label">Healthcare Provider</label>
-            <input type="text" name="children[0][healthcare_provider]">
+          <div class="form-group" data-pfield="healthcare" style="<%= fieldStyle(initialFc.participants.fields.healthcare) %>">
+            <label class="healthcare-label"><%= initialFc.participants.fields.healthcare.label %><%- reqStar(initialFc.participants.fields.healthcare) %></label>
+            <input type="text" name="children[0][healthcare_provider]" <%= initialFc.participants.fields.healthcare.required ? 'required' : '' %>>
           </div>
-          <div class="form-group">
-            <label class="allergies-label">Allergies</label>
-            <input type="text" name="children[0][allergies]">
+          <div class="form-group" data-pfield="allergies" style="<%= fieldStyle(initialFc.participants.fields.allergies) %>">
+            <label class="allergies-label"><%= initialFc.participants.fields.allergies.label %><%- reqStar(initialFc.participants.fields.allergies) %></label>
+            <input type="text" name="children[0][allergies]" <%= initialFc.participants.fields.allergies.required ? 'required' : '' %>>
           </div>
         </div>
       </div>
     </div>
 
-    <a href="#" id="addChildBtn" class="add-child-link">+ Add Another Child</a>
+    <a href="#" id="addChildBtn" class="add-child-link" style="<%= initialFc.participants.singleOnly ? 'display: none;' : '' %>">+ Add Another <%= initialFc.participants.singularLabel %></a>
 
-    <div class="form-group" style="margin-top: 20px;">
-      <label id="notesLabel">Tell us a little something about your child</label>
-      <textarea name="notes" rows="3"></textarea>
+    <div class="form-group" data-field="notes" style="margin-top: 20px; <%= fieldStyle(initialFc.notes) %>">
+      <label id="notesLabel"><%= initialFc.notes.label %><%- reqStar(initialFc.notes) %></label>
+      <textarea name="notes" rows="3" <%= initialFc.notes.required ? 'required' : '' %>></textarea>
     </div>
 
     <div id="customQuestionsSection" style="display: none; margin-top: 20px; padding-top: 16px; border-top: 1px solid #e0ddd5;">
@@ -100,10 +123,10 @@
       <div id="customQuestionsList"></div>
     </div>
 
-    <div class="form-group" style="margin-top: 16px;">
+    <div class="form-group" data-field="terms" style="margin-top: 16px; <%= fieldStyle(initialFc.terms) %>">
       <label style="display: flex; align-items: flex-start; gap: 10px; cursor: pointer; font-weight: 400; font-size: 0.9rem;">
-        <input type="checkbox" id="termsCheckbox" required style="margin-top: 3px; flex-shrink: 0; width: 18px; height: 18px;">
-        <span>By checking this box, you agree to our terms and conditions, including cancellation policy and liability waiver, as defined briefly below. <span class="req">*</span></span>
+        <input type="checkbox" id="termsCheckbox" style="margin-top: 3px; flex-shrink: 0; width: 18px; height: 18px;" <%= initialFc.terms.required ? 'required' : '' %>>
+        <span>By checking this box, you agree to our terms and conditions, including cancellation policy and liability waiver, as defined briefly below.<%- reqStar(initialFc.terms) %></span>
       </label>
     </div>
 
@@ -111,7 +134,7 @@
       Complete Registration
     </button>
 
-    <div style="margin-top: 32px; font-size: 0.85rem; color: var(--text-light); line-height: 1.6;">
+    <div id="termsBlock" style="margin-top: 32px; font-size: 0.85rem; color: var(--text-light); line-height: 1.6; <%= initialFc.terms.show ? '' : 'display: none;' %>">
       <h4 style="color: var(--green-dark); margin-bottom: 8px;">Terms and Conditions</h4>
       <p style="margin-bottom: 8px;">Camp is both adventurous and fun — and part of that joy comes from learning how to navigate the natural world with awareness and confidence. In the woods, small challenges can arise, and together we practice resilience, problem-solving, and safe risk-taking as children learn their boundaries.</p>
       <p style="margin-bottom: 16px;">By registering for <%= site.name %>, you acknowledge and agree to the terms outlined in our liability waiver, available <a href="#" onclick="openWaiverModal(); return false;" style="font-weight: 700;">here</a>.</p>
@@ -151,34 +174,13 @@ document.getElementById('waiverModal').addEventListener('click', function(e) {
 
 <script>
 (function() {
-  const DEFAULT_LABELS = {
-    participantsHeading: 'Children',
-    participantSingularLabel: 'Child',
-    contactHeading: 'Parent/Guardian Name',
-    notesPrompt: 'Tell us a little something about your child',
-    singleParticipantOnly: false,
-    emailLabel: 'Email',
-    phoneLabel: 'Phone',
-    dobLabel: 'Date of Birth',
-    healthcareLabel: 'Healthcare Provider',
-    allergiesLabel: 'Allergies',
-  };
+  // Each program ships a fully-materialized formConfig from the server.
   const PROGRAM_DATA = <%- JSON.stringify(programs.reduce((acc, p) => {
     acc[p.id] = {
       desc: p.registrationDescription || null,
-      labels: {
-        participantsHeading: p.participantsHeading || null,
-        participantSingularLabel: p.participantSingularLabel || null,
-        contactHeading: p.contactHeading || null,
-        notesPrompt: p.notesPrompt || null,
-        singleParticipantOnly: !!p.singleParticipantOnly,
-        emailLabel: p.emailLabel || null,
-        phoneLabel: p.phoneLabel || null,
-        dobLabel: p.dobLabel || null,
-        healthcareLabel: p.healthcareLabel || null,
-        allergiesLabel: p.allergiesLabel || null,
-      },
       questions: p.customQuestions || [],
+      formConfig: p.formConfig,
+      name: p.name,
     };
     return acc;
   }, {})) %>;
@@ -186,67 +188,95 @@ document.getElementById('waiverModal').addEventListener('click', function(e) {
   const sel = document.getElementById('programSelect');
   const descEl = document.getElementById('programDescription');
 
-  // Expose current labels so children.js can read them when adding entries
-  // and recomputing the notes prompt.
-  window.currentProgramLabels = Object.assign({}, DEFAULT_LABELS);
+  // Expose current formConfig so children.js uses the right labels/required-ness
+  // when adding new participant entries.
+  window.currentProgramFormConfig = null;
 
-  function pickLabel(programLabels, key) {
-    return (programLabels && programLabels[key]) || DEFAULT_LABELS[key];
+  function reqStar(f) { return f.required ? ' <span class="req">*</span>' : ''; }
+  function setFieldGroup(el, field) {
+    if (!el) return;
+    el.style.display = field.show ? '' : 'none';
+    const input = el.querySelector('input, textarea, select');
+    if (input) {
+      if (field.required) input.setAttribute('required', '');
+      else input.removeAttribute('required');
+    }
   }
 
   function applyForProgram(programId) {
     const data = PROGRAM_DATA[programId];
-    const labels = data ? data.labels : null;
-    const merged = {
-      participantsHeading: pickLabel(labels, 'participantsHeading'),
-      participantSingularLabel: pickLabel(labels, 'participantSingularLabel'),
-      contactHeading: pickLabel(labels, 'contactHeading'),
-      notesPrompt: pickLabel(labels, 'notesPrompt'),
-      singleParticipantOnly: labels ? !!labels.singleParticipantOnly : false,
-      emailLabel: pickLabel(labels, 'emailLabel'),
-      phoneLabel: pickLabel(labels, 'phoneLabel'),
-      dobLabel: pickLabel(labels, 'dobLabel'),
-      healthcareLabel: pickLabel(labels, 'healthcareLabel'),
-      allergiesLabel: pickLabel(labels, 'allergiesLabel'),
-    };
-    window.currentProgramLabels = merged;
+    const fc = (data && data.formConfig) || null;
+    if (!fc) { return; }
+    window.currentProgramFormConfig = fc;
 
-    document.getElementById('participantsHeading').textContent = merged.participantsHeading;
-    const contactLbl = document.getElementById('contactNameLabel');
-    contactLbl.innerHTML = merged.contactHeading + ' <span class="req">*</span>';
-    const emailLbl = document.getElementById('emailLabel');
-    if (emailLbl) emailLbl.innerHTML = merged.emailLabel + ' <span class="req">*</span>';
-    const phoneLbl = document.getElementById('phoneLabel');
-    if (phoneLbl) phoneLbl.innerHTML = merged.phoneLabel + ' <span class="req">*</span>';
-    document.querySelectorAll('.participant-name-label').forEach(function(el) {
-      el.innerHTML = merged.participantSingularLabel + "'s Name <span class=\"req\">*</span>";
+    // Page title + lead. Prefix uses this program's setting; if the URL locks the
+    // program in, append the program name. Otherwise just show the prefix.
+    const hideSelector = !fc.programSelector.show && sel.tagName === 'INPUT';
+    const titleEl = document.getElementById('pageTitle');
+    if (titleEl) titleEl.textContent = hideSelector ? (fc.pageTitlePrefix + ': ' + data.name) : fc.pageTitlePrefix;
+    const leadEl = document.getElementById('pageLead');
+    if (leadEl) {
+      const leadText = fc.pageLead || (!hideSelector ? 'Select a program and dates, then fill in your information below.' : null);
+      if (leadText) { leadEl.textContent = leadText; leadEl.style.display = ''; }
+      else { leadEl.style.display = 'none'; }
+    }
+
+    // Contact fields
+    setFieldGroup(document.querySelector('[data-field="contactName"]'), fc.contactName);
+    document.getElementById('contactNameLabel').innerHTML = fc.contactName.label + reqStar(fc.contactName);
+    setFieldGroup(document.querySelector('[data-field="contactEmail"]'), fc.contactEmail);
+    document.getElementById('emailLabel').innerHTML = fc.contactEmail.label + reqStar(fc.contactEmail);
+    setFieldGroup(document.querySelector('[data-field="contactPhone"]'), fc.contactPhone);
+    document.getElementById('phoneLabel').innerHTML = fc.contactPhone.label + reqStar(fc.contactPhone);
+
+    // Participants section + per-row fields (apply to ALL existing rows)
+    document.getElementById('participantsHeading').textContent = fc.participants.sectionHeading;
+    const singular = fc.participants.singularLabel;
+    document.querySelectorAll('.child-entry').forEach(function(row) {
+      setFieldGroup(row.querySelector('[data-pfield="name"]'), fc.participants.fields.name);
+      const nameLbl = row.querySelector('.participant-name-label');
+      if (nameLbl) nameLbl.innerHTML = (fc.participants.fields.name.label || (singular + "'s Name")) + reqStar(fc.participants.fields.name);
+
+      setFieldGroup(row.querySelector('[data-pfield="dob"]'), fc.participants.fields.dob);
+      const dobLbl = row.querySelector('.dob-label');
+      if (dobLbl) dobLbl.innerHTML = fc.participants.fields.dob.label + reqStar(fc.participants.fields.dob);
+
+      setFieldGroup(row.querySelector('[data-pfield="healthcare"]'), fc.participants.fields.healthcare);
+      const hcLbl = row.querySelector('.healthcare-label');
+      if (hcLbl) hcLbl.innerHTML = fc.participants.fields.healthcare.label + reqStar(fc.participants.fields.healthcare);
+
+      setFieldGroup(row.querySelector('[data-pfield="allergies"]'), fc.participants.fields.allergies);
+      const alLbl = row.querySelector('.allergies-label');
+      if (alLbl) alLbl.innerHTML = fc.participants.fields.allergies.label + reqStar(fc.participants.fields.allergies);
     });
-    document.querySelectorAll('.dob-label').forEach(function(el) {
-      el.innerHTML = merged.dobLabel + ' <span class="req">*</span>';
-    });
-    document.querySelectorAll('.healthcare-label').forEach(function(el) {
-      el.textContent = merged.healthcareLabel;
-    });
-    document.querySelectorAll('.allergies-label').forEach(function(el) {
-      el.textContent = merged.allergiesLabel;
-    });
+    const addBtn = document.getElementById('addChildBtn');
+    if (addBtn) {
+      addBtn.style.display = fc.participants.singleOnly ? 'none' : '';
+      addBtn.textContent = '+ Add Another ' + singular;
+    }
+
+    // Notes
+    setFieldGroup(document.querySelector('[data-field="notes"]'), fc.notes);
     const notesLbl = document.getElementById('notesLabel');
     if (notesLbl) {
       if (typeof window.updateNotesLabel === 'function') {
         window.updateNotesLabel();
       } else {
-        notesLbl.textContent = merged.notesPrompt;
+        notesLbl.innerHTML = fc.notes.label + reqStar(fc.notes);
       }
     }
-    const addBtn = document.getElementById('addChildBtn');
-    if (addBtn) addBtn.style.display = merged.singleParticipantOnly ? 'none' : '';
 
-    // Description block
+    // Terms
+    setFieldGroup(document.querySelector('[data-field="terms"]'), fc.terms);
+    const termsBlock = document.getElementById('termsBlock');
+    if (termsBlock) termsBlock.style.display = fc.terms.show ? '' : 'none';
+
+    // Program description (unchanged)
     const desc = data ? data.desc : null;
     if (desc) { descEl.innerHTML = desc; descEl.style.display = 'block'; }
     else { descEl.style.display = 'none'; }
 
-    // Custom questions
+    // Custom questions (unchanged)
     const questions = (data && data.questions) || [];
     const cqSection = document.getElementById('customQuestionsSection');
     const cqList = document.getElementById('customQuestionsList');
@@ -273,7 +303,7 @@ document.getElementById('waiverModal').addEventListener('click', function(e) {
     }
   }
 
-  sel.addEventListener('change', function() { applyForProgram(sel.value); });
+  if (sel.tagName === 'SELECT') sel.addEventListener('change', function() { applyForProgram(sel.value); });
   applyForProgram(sel.value);
 })();
 </script>

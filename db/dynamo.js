@@ -95,6 +95,62 @@ async function updateProgramRegDescription(id, registrationDescription) {
   }));
 }
 
+// Merges a stored field spec with a default, allowing partial overrides.
+// Used by materializeFormConfig.
+function _mergeField(stored, defaults) {
+  const src = stored || {};
+  const label = (src.label === undefined || src.label === null || src.label === '') ? defaults.label : src.label;
+  return {
+    show: src.show !== undefined ? !!src.show : defaults.show,
+    required: src.required !== undefined ? !!src.required : defaults.required,
+    label,
+  };
+}
+
+// Returns a fully-populated form config for the public registration form,
+// merging the program's stored formConfig with any legacy flat fields and
+// the defaults. Pure read-side; does not mutate or persist.
+function materializeFormConfig(program) {
+  if (!program) return null;
+  const cfg = program.formConfig || {};
+  const parts = cfg.participants || {};
+  const partsFields = parts.fields || {};
+  return {
+    pageTitlePrefix: (cfg.pageTitlePrefix && cfg.pageTitlePrefix.trim()) || 'Registration',
+    pageLead: (cfg.pageLead && cfg.pageLead.trim()) || null,
+    programSelector: {
+      show: cfg.programSelector && cfg.programSelector.show !== undefined
+        ? !!cfg.programSelector.show
+        : (program.showProgramSelector === undefined ? true : !!program.showProgramSelector),
+    },
+    contactName:  _mergeField(cfg.contactName,  { show: true, required: true, label: program.contactHeading || 'Parent/Guardian Name' }),
+    contactEmail: _mergeField(cfg.contactEmail, { show: true, required: true, label: program.emailLabel || 'Email' }),
+    contactPhone: _mergeField(cfg.contactPhone, { show: true, required: true, label: program.phoneLabel || 'Phone' }),
+    participants: {
+      sectionHeading: parts.sectionHeading || program.participantsHeading || 'Children',
+      singularLabel: parts.singularLabel || program.participantSingularLabel || 'Child',
+      singleOnly: parts.singleOnly !== undefined ? !!parts.singleOnly : !!program.singleParticipantOnly,
+      fields: {
+        name:       _mergeField(partsFields.name,       { show: true, required: true, label: null }),
+        dob:        _mergeField(partsFields.dob,        { show: true, required: true, label: program.dobLabel || 'Date of Birth' }),
+        healthcare: _mergeField(partsFields.healthcare, { show: true, required: false, label: program.healthcareLabel || 'Healthcare Provider' }),
+        allergies:  _mergeField(partsFields.allergies,  { show: true, required: false, label: program.allergiesLabel || 'Allergies' }),
+      },
+    },
+    notes: _mergeField(cfg.notes, { show: true, required: false, label: program.notesPrompt || 'Tell us a little something about your child' }),
+    terms: _mergeField(cfg.terms, { show: true, required: true, label: null }),
+  };
+}
+
+async function updateProgramFormConfig(id, formConfig) {
+  await client.send(new UpdateCommand({
+    TableName: T.programs,
+    Key: { id },
+    UpdateExpression: 'SET formConfig = :c',
+    ExpressionAttributeValues: { ':c': formConfig || null },
+  }));
+}
+
 async function updateProgramCustomQuestions(id, questions) {
   // questions: [{label, helpText, type, required}]
   const sanitized = (questions || [])
@@ -868,7 +924,8 @@ async function savePage(slug, data) {
 
 module.exports = {
   getAllPrograms, getProgram, getProgramBySlug, createProgram, deleteProgram,
-  updateProgramDescription, updateProgramRegDescription, updateProgramFormLabels, updateProgramCustomQuestions, updateProgramHero, addProgramMedia, removeProgramMedia,
+  updateProgramDescription, updateProgramRegDescription, updateProgramFormLabels, updateProgramFormConfig, updateProgramCustomQuestions, updateProgramHero, addProgramMedia, removeProgramMedia,
+  materializeFormConfig,
   getDatesByProgram, addDates, updateDateCapacity, removeDate,
   createRegistration, getRegistration, getEnrollments, getRegistrationsByProgram,
   countRegistrationsByProgram, deleteRegistration, mergeRegistrations, autoMergeRegistrations, removeDateFromRegistration, updatePayment,

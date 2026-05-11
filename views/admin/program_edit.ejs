@@ -60,76 +60,106 @@
       <button type="submit" class="btn btn-green btn-sm" style="margin-top: 12px;">Save Registration Description</button>
     </form>
 
-    <!-- Registration Form Labels -->
-    <h2 style="margin-bottom: 4px;">Registration Form Labels</h2>
-    <p style="font-size: 0.85rem; color: var(--text-light); margin-bottom: 12px;">Override the default labels on the registration form for this program. Leave any field blank to use the default.</p>
-    <form method="POST" action="/admin/programs/<%= program.id %>/form-labels" style="margin-bottom: 32px; background: var(--sand); border-radius: var(--radius); padding: 20px;">
-      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
-        <div class="form-group">
-          <label>Participants Section Heading <span style="font-weight:normal; color:var(--text-light);">(default: Children)</span></label>
-          <input type="text" name="participants_heading" value="<%= program.participantsHeading || '' %>" placeholder="Children"
-            style="padding: 8px 12px; border: 1px solid #ccc; border-radius: var(--radius); width: 100%;">
+    <!-- Registration Form Builder -->
+    <% const fc = program.formConfig; %>
+    <h2 style="margin-bottom: 4px;">Registration Form Builder</h2>
+    <p style="font-size: 0.85rem; color: var(--text-light); margin-bottom: 12px;">For each field on the registration form, choose whether it's shown, whether it's required, and what label to display.</p>
+    <form method="POST" action="/admin/programs/<%= program.id %>/form-config" style="margin-bottom: 32px; background: var(--sand); border-radius: var(--radius); padding: 20px;">
+
+      <!-- Page heading -->
+      <h3 style="font-size: 0.95rem; margin-bottom: 8px; color: var(--green-dark);">Page heading</h3>
+      <div style="display: grid; grid-template-columns: 1fr 2fr; gap: 12px; align-items: end; margin-bottom: 16px;">
+        <div class="form-group" style="margin: 0;">
+          <label style="font-size: 0.8rem;">Title prefix <span style="font-weight:normal; color:var(--text-light);">(default: Registration)</span></label>
+          <input type="text" name="page_title_prefix" value="<%= fc.pageTitlePrefix === 'Registration' ? '' : fc.pageTitlePrefix %>" placeholder="Registration"
+            style="padding: 8px 10px; border: 1px solid #ccc; border-radius: var(--radius); width: 100%;">
         </div>
-        <div class="form-group">
-          <label>Participant Label, Singular <span style="font-weight:normal; color:var(--text-light);">(default: Child)</span></label>
-          <input type="text" name="participant_singular_label" value="<%= program.participantSingularLabel || '' %>" placeholder="Child"
-            style="padding: 8px 12px; border: 1px solid #ccc; border-radius: var(--radius); width: 100%;">
-        </div>
-        <div class="form-group">
-          <label>Contact Name Label <span style="font-weight:normal; color:var(--text-light);">(default: Parent/Guardian Name)</span></label>
-          <input type="text" name="contact_heading" value="<%= program.contactHeading || '' %>" placeholder="Parent/Guardian Name"
-            style="padding: 8px 12px; border: 1px solid #ccc; border-radius: var(--radius); width: 100%;">
-        </div>
-        <div class="form-group">
-          <label>Notes Prompt <span style="font-weight:normal; color:var(--text-light);">(default: Tell us a little something about your child)</span></label>
-          <input type="text" name="notes_prompt" value="<%= program.notesPrompt || '' %>" placeholder="Tell us a little something about your child"
-            style="padding: 8px 12px; border: 1px solid #ccc; border-radius: var(--radius); width: 100%;">
-        </div>
-        <div class="form-group">
-          <label>Email Label <span style="font-weight:normal; color:var(--text-light);">(default: Email)</span></label>
-          <input type="text" name="email_label" value="<%= program.emailLabel || '' %>" placeholder="Email"
-            style="padding: 8px 12px; border: 1px solid #ccc; border-radius: var(--radius); width: 100%;">
-        </div>
-        <div class="form-group">
-          <label>Phone Label <span style="font-weight:normal; color:var(--text-light);">(default: Phone)</span></label>
-          <input type="text" name="phone_label" value="<%= program.phoneLabel || '' %>" placeholder="Phone"
-            style="padding: 8px 12px; border: 1px solid #ccc; border-radius: var(--radius); width: 100%;">
-        </div>
-        <div class="form-group">
-          <label>Date-of-Birth Label <span style="font-weight:normal; color:var(--text-light);">(default: Date of Birth)</span></label>
-          <input type="text" name="dob_label" value="<%= program.dobLabel || '' %>" placeholder="Date of Birth"
-            style="padding: 8px 12px; border: 1px solid #ccc; border-radius: var(--radius); width: 100%;">
-        </div>
-        <div class="form-group">
-          <label>Healthcare Provider Label <span style="font-weight:normal; color:var(--text-light);">(default: Healthcare Provider)</span></label>
-          <input type="text" name="healthcare_label" value="<%= program.healthcareLabel || '' %>" placeholder="Healthcare Provider"
-            style="padding: 8px 12px; border: 1px solid #ccc; border-radius: var(--radius); width: 100%;">
-        </div>
-        <div class="form-group">
-          <label>Allergies Label <span style="font-weight:normal; color:var(--text-light);">(default: Allergies)</span></label>
-          <input type="text" name="allergies_label" value="<%= program.allergiesLabel || '' %>" placeholder="Allergies"
-            style="padding: 8px 12px; border: 1px solid #ccc; border-radius: var(--radius); width: 100%;">
+        <div class="form-group" style="margin: 0;">
+          <label style="font-size: 0.8rem;">Lead text <span style="font-weight:normal; color:var(--text-light);">(optional)</span></label>
+          <input type="text" name="page_lead" value="<%= fc.pageLead || '' %>" placeholder="Select a program and dates, then fill in your information below."
+            style="padding: 8px 10px; border: 1px solid #ccc; border-radius: var(--radius); width: 100%;">
         </div>
       </div>
-      <div style="margin-top: 12px;">
+      <div style="margin-bottom: 20px;">
         <label style="display: inline-flex; align-items: center; gap: 8px; cursor: pointer; font-weight: 400;">
-          <input type="checkbox" name="single_participant_only" <%= program.singleParticipantOnly ? 'checked' : '' %>
-            style="width: auto; padding: 0; margin: 0; border: none;">
-          Single participant only <span style="color: var(--text-light); font-size: 0.85rem;">(hides the "+ Add Another" link)</span>
-        </label>
-      </div>
-      <div style="margin-top: 6px;">
-        <label style="display: inline-flex; align-items: center; gap: 8px; cursor: pointer; font-weight: 400;">
-          <%
-            // Default to true when the field has never been saved (existing programs predate this flag).
-            const showSelector = program.showProgramSelector === undefined ? true : !!program.showProgramSelector;
-          %>
-          <input type="checkbox" name="show_program_selector" <%= showSelector ? 'checked' : '' %>
+          <input type="checkbox" name="show_program_selector" <%= fc.programSelector.show ? 'checked' : '' %>
             style="width: auto; padding: 0; margin: 0; border: none;">
           Show program selector on registration page <span style="color: var(--text-light); font-size: 0.85rem;">(uncheck to lock visitors to this program when they arrive via its direct URL)</span>
         </label>
       </div>
-      <button type="submit" class="btn btn-green btn-sm" style="margin-top: 8px;">Save Form Labels</button>
+
+      <h3 style="font-size: 0.95rem; margin-bottom: 8px; color: var(--green-dark);">Contact information</h3>
+      <div class="field-table" style="display: grid; grid-template-columns: 200px 80px 80px 1fr; gap: 8px 12px; align-items: center; margin-bottom: 20px; font-size: 0.85rem;">
+        <div style="font-weight: 700; color: var(--text-light);">Field</div>
+        <div style="font-weight: 700; color: var(--text-light); text-align: center;">Show</div>
+        <div style="font-weight: 700; color: var(--text-light); text-align: center;">Required</div>
+        <div style="font-weight: 700; color: var(--text-light);">Label</div>
+
+        <% function fieldRow(key, fieldKey, fieldLabel, fc) { %>
+          <div><%= fieldLabel %></div>
+          <div style="text-align: center;"><input type="checkbox" name="<%= key %>_show" <%= fc.show ? 'checked' : '' %> style="width: auto; padding: 0; margin: 0; border: none;"></div>
+          <div style="text-align: center;"><input type="checkbox" name="<%= key %>_required" <%= fc.required ? 'checked' : '' %> style="width: auto; padding: 0; margin: 0; border: none;"></div>
+          <div><input type="text" name="<%= key %>_label" value="<%= fc.label || '' %>" placeholder="<%= fc.label || '' %>" style="padding: 6px 10px; border: 1px solid #ccc; border-radius: var(--radius); width: 100%;"></div>
+        <% } %>
+
+        <% fieldRow('contact_name',  'contactName',  'Contact Name',  fc.contactName); %>
+        <% fieldRow('contact_email', 'contactEmail', 'Contact Email', fc.contactEmail); %>
+        <% fieldRow('contact_phone', 'contactPhone', 'Contact Phone', fc.contactPhone); %>
+      </div>
+
+      <h3 style="font-size: 0.95rem; margin-bottom: 8px; color: var(--green-dark);">Participant information</h3>
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px;">
+        <div class="form-group" style="margin: 0;">
+          <label style="font-size: 0.8rem;">Section heading <span style="font-weight:normal; color:var(--text-light);">(default: Children)</span></label>
+          <input type="text" name="participants_heading" value="<%= fc.participants.sectionHeading === 'Children' ? '' : fc.participants.sectionHeading %>" placeholder="Children"
+            style="padding: 8px 10px; border: 1px solid #ccc; border-radius: var(--radius); width: 100%;">
+        </div>
+        <div class="form-group" style="margin: 0;">
+          <label style="font-size: 0.8rem;">Singular label <span style="font-weight:normal; color:var(--text-light);">(default: Child)</span></label>
+          <input type="text" name="participant_singular_label" value="<%= fc.participants.singularLabel === 'Child' ? '' : fc.participants.singularLabel %>" placeholder="Child"
+            style="padding: 8px 10px; border: 1px solid #ccc; border-radius: var(--radius); width: 100%;">
+        </div>
+      </div>
+      <div style="margin-bottom: 12px;">
+        <label style="display: inline-flex; align-items: center; gap: 8px; cursor: pointer; font-weight: 400; font-size: 0.85rem;">
+          <input type="checkbox" name="single_participant_only" <%= fc.participants.singleOnly ? 'checked' : '' %>
+            style="width: auto; padding: 0; margin: 0; border: none;">
+          Single participant only <span style="color: var(--text-light);">(hides the "+ Add Another" link)</span>
+        </label>
+      </div>
+      <div style="display: grid; grid-template-columns: 200px 80px 80px 1fr; gap: 8px 12px; align-items: center; margin-bottom: 20px; font-size: 0.85rem;">
+        <div style="font-weight: 700; color: var(--text-light);">Field</div>
+        <div style="font-weight: 700; color: var(--text-light); text-align: center;">Show</div>
+        <div style="font-weight: 700; color: var(--text-light); text-align: center;">Required</div>
+        <div style="font-weight: 700; color: var(--text-light);">Label</div>
+
+        <!-- Participant Name: label override only if you want to override the auto "<Singular>'s Name" -->
+        <div>Name</div>
+        <div style="text-align: center;"><input type="checkbox" name="pname_show" <%= fc.participants.fields.name.show ? 'checked' : '' %> style="width: auto; padding: 0; margin: 0; border: none;"></div>
+        <div style="text-align: center;"><input type="checkbox" name="pname_required" <%= fc.participants.fields.name.required ? 'checked' : '' %> style="width: auto; padding: 0; margin: 0; border: none;"></div>
+        <div><input type="text" name="pname_label" value="<%= fc.participants.fields.name.label || '' %>" placeholder="<%= fc.participants.singularLabel %>&apos;s Name" style="padding: 6px 10px; border: 1px solid #ccc; border-radius: var(--radius); width: 100%;"></div>
+
+        <% fieldRow('pdob',        'dob',        'Date of Birth',       fc.participants.fields.dob); %>
+        <% fieldRow('phealthcare', 'healthcare', 'Healthcare Provider', fc.participants.fields.healthcare); %>
+        <% fieldRow('pallergies',  'allergies',  'Allergies',           fc.participants.fields.allergies); %>
+      </div>
+
+      <h3 style="font-size: 0.95rem; margin-bottom: 8px; color: var(--green-dark);">Other</h3>
+      <div style="display: grid; grid-template-columns: 200px 80px 80px 1fr; gap: 8px 12px; align-items: center; margin-bottom: 20px; font-size: 0.85rem;">
+        <div style="font-weight: 700; color: var(--text-light);">Field</div>
+        <div style="font-weight: 700; color: var(--text-light); text-align: center;">Show</div>
+        <div style="font-weight: 700; color: var(--text-light); text-align: center;">Required</div>
+        <div style="font-weight: 700; color: var(--text-light);">Label</div>
+
+        <% fieldRow('notes', 'notes', 'Notes', fc.notes); %>
+
+        <div>Terms checkbox <div style="font-size: 0.75rem; color: var(--text-light);">body edited at <a href="/admin/pages/waiver/edit">Site Pages → Waiver</a></div></div>
+        <div style="text-align: center;"><input type="checkbox" name="terms_show" <%= fc.terms.show ? 'checked' : '' %> style="width: auto; padding: 0; margin: 0; border: none;"></div>
+        <div style="text-align: center;"><input type="checkbox" name="terms_required" <%= fc.terms.required ? 'checked' : '' %> style="width: auto; padding: 0; margin: 0; border: none;"></div>
+        <div style="color: var(--text-light); font-size: 0.8rem;">(no label override)</div>
+      </div>
+
+      <button type="submit" class="btn btn-green btn-sm">Save Registration Form</button>
     </form>
 
     <!-- Custom Registration Questions -->

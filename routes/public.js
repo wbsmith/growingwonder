@@ -44,6 +44,11 @@ router.get('/register/thanks', (req, res) => {
 
 router.get('/register/:slug?', asyncHandler(async (req, res) => {
   const programs = await db.getAllPrograms();
+  // Attach a materialized formConfig to every program so the view and the
+  // dropdown-change handler can read uniform structure regardless of whether
+  // a program has been migrated to the new schema yet.
+  programs.forEach(p => { p.formConfig = db.materializeFormConfig(p); });
+
   let selectedProgramId = null;
   let arrivedViaSlug = false;
 
@@ -58,10 +63,10 @@ router.get('/register/:slug?', asyncHandler(async (req, res) => {
     selectedProgramId = req.query.program;
   }
 
-  // Hide the program selector only when a program is locked-in via its slug URL
-  // AND that program has explicitly opted out via the admin toggle.
   const selectedProgram = selectedProgramId ? programs.find(p => p.id === selectedProgramId) : null;
-  const hideSelector = !!(arrivedViaSlug && selectedProgram && selectedProgram.showProgramSelector === false);
+  // Hide selector only when the user landed via the program's slug URL AND that
+  // program has the selector turned off in its formConfig.
+  const hideSelector = !!(arrivedViaSlug && selectedProgram && selectedProgram.formConfig.programSelector.show === false);
 
   res.render('register', { programs, selectedProgramId, selectedProgram, hideSelector });
 }));
@@ -72,16 +77,17 @@ router.post('/register', publicFormLimiter, asyncHandler(async (req, res) => {
     notes, selected_dates,
   } = req.body;
 
-  // Look up program early for slug-based redirects
+  // Look up program early for slug-based redirects + formConfig
   const program = program_id ? await db.getProgram(program_id) : null;
   const regUrl = program && program.slug ? '/register/' + program.slug : '/register';
+  const fc = program ? db.materializeFormConfig(program) : null;
 
   const rawChildren = req.body.children || {};
-  const children = Object.values(rawChildren).filter(c => c.name && c.dob);
+  // Drop empty rows. A row counts only if at least one shown field has a value.
+  const children = Object.values(rawChildren).filter(c => c && (c.name || c.dob || c.healthcare_provider || c.allergies));
 
-  if (!program_id || !parent_name || !parent_email || !parent_phone ||
-      children.length === 0 || !selected_dates) {
-    req.session.flash = { type: 'error', msg: 'Please fill in all required fields, add at least one child, and select dates.' };
+  if (!program_id || children.length === 0 || !selected_dates) {
+    req.session.flash = { type: 'error', msg: 'Please fill in all required fields, add at least one participant, and select dates.' };
     return res.redirect(303, regUrl);
   }
 
@@ -91,7 +97,7 @@ router.post('/register', publicFormLimiter, asyncHandler(async (req, res) => {
     return res.redirect(303, regUrl);
   }
 
-  // Check capacity on each selected date
+  // Capacity check
   const programDates = await db.getDatesByProgram(program_id);
   const dateCapMap = {};
   programDates.forEach(d => { dateCapMap[d.date] = { capacity: d.maxCapacity || 12, enrolled: d.enrolled || 0 }; });
@@ -108,14 +114,50 @@ router.post('/register', publicFormLimiter, asyncHandler(async (req, res) => {
     return res.redirect(303, regUrl);
   }
 
+  // Per-field validation driven by formConfig. A field that is "shown" and
+  // "required" must be provided. Hidden fields are ignored (and not stored).
+  const missing = [];
+  if (fc.contactName.show && fc.contactName.required && !parent_name) missing.push(fc.contactName.label);
+  if (fc.contactEmail.show && fc.contactEmail.required && !parent_email) missing.push(fc.contactEmail.label);
+  if (fc.contactPhone.show && fc.contactPhone.required && !parent_phone) missing.push(fc.contactPhone.label);
+  if (missing.length > 0) {
+    req.session.flash = { type: 'error', msg: 'Please complete: ' + missing.join(', ') + '.' };
+    return res.redirect(303, regUrl);
+  }
+
+  // Format validation only on fields that are both shown and provided.
   const emailRe = /^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$/;
-  const phoneDigits = parent_phone.replace(/\D/g, '');
-  if (!emailRe.test(parent_email)) {
+  if (fc.contactEmail.show && parent_email && !emailRe.test(parent_email)) {
     req.session.flash = { type: 'error', msg: 'Please enter a valid email address.' };
     return res.redirect(303, regUrl);
   }
-  if (phoneDigits.length !== 10) {
-    req.session.flash = { type: 'error', msg: 'Please enter a valid 10-digit phone number.' };
+  if (fc.contactPhone.show && parent_phone) {
+    const phoneDigits = parent_phone.replace(/\D/g, '');
+    if (phoneDigits.length !== 10) {
+      req.session.flash = { type: 'error', msg: 'Please enter a valid 10-digit phone number.' };
+      return res.redirect(303, regUrl);
+    }
+  }
+
+  // Per-participant required-field validation.
+  const pf = fc.participants.fields;
+  const participantLabel = fc.participants.singularLabel;
+  for (let i = 0; i < children.length; i++) {
+    const c = children[i];
+    const missingForChild = [];
+    if (pf.name.show && pf.name.required && !c.name) missingForChild.push(pf.name.label || (participantLabel + "'s Name"));
+    if (pf.dob.show && pf.dob.required && !c.dob) missingForChild.push(pf.dob.label);
+    if (pf.healthcare.show && pf.healthcare.required && !c.healthcare_provider) missingForChild.push(pf.healthcare.label);
+    if (pf.allergies.show && pf.allergies.required && !c.allergies) missingForChild.push(pf.allergies.label);
+    if (missingForChild.length > 0) {
+      req.session.flash = { type: 'error', msg: `Please complete the following for ${participantLabel} ${i + 1}: ${missingForChild.join(', ')}.` };
+      return res.redirect(303, regUrl);
+    }
+  }
+
+  // Notes required (if configured)
+  if (fc.notes.show && fc.notes.required && !notes) {
+    req.session.flash = { type: 'error', msg: 'Please fill in the notes field.' };
     return res.redirect(303, regUrl);
   }
 
@@ -136,57 +178,66 @@ router.post('/register', publicFormLimiter, asyncHandler(async (req, res) => {
     return res.redirect(303, regUrl);
   }
 
-  // Compose confirmation email
+  // Compose confirmation email — defensive when fields were hidden by config.
   const dateListStr = dateList.sort().map(d => {
     const dt = new Date(d + 'T00:00:00');
     return dt.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
   }).join('\n  ');
 
-  const childNames = children.map(c => c.name);
-  const childListStr = childNames.length === 1
-    ? childNames[0]
-    : childNames.slice(0, -1).join(', ') + ' and ' + childNames[childNames.length - 1];
+  const childNames = children.map(c => c.name).filter(Boolean);
+  const childListStr = childNames.length === 0
+    ? null
+    : childNames.length === 1
+      ? childNames[0]
+      : childNames.slice(0, -1).join(', ') + ' and ' + childNames[childNames.length - 1];
 
   const programName = program ? program.name : 'our program';
+  const greetingName = (fc.contactName.show && parent_name) || childListStr || 'Friend';
+  const enrolledSubject = childListStr || 'your registration';
 
   const responsesBlock = customResponses.filter(r => r.value).length > 0
     ? '\n\nYour responses:\n' + customResponses.filter(r => r.value).map(r => `  • ${r.label}: ${r.value}`).join('\n')
     : '';
 
-  const emailBody = `Dear ${parent_name},
+  const emailBody = `Dear ${greetingName},
 
-Thank you for registering ${childListStr} for ${programName}!
+Thank you for registering ${enrolledSubject} for ${programName}!
 
 Enrolled dates:
   ${dateListStr}${responsesBlock}
-
-We're excited to have ${childListStr} join us. Please arrive by 8:45 AM on the first day. Don't forget sunscreen, a water bottle, and a sense of adventure!
 
 If you have any questions, reply to this email or call us at ${site.phone}.
 
 Warm regards,
 ${site.name} Team`;
 
+  // Only persist fields that were collected per formConfig. Hidden fields → null.
+  const recordedEmail = fc.contactEmail.show ? (parent_email || null) : null;
+  const queueEmail = fc.contactEmail.show && recordedEmail; // skip queuing when no email
   try {
     await db.createRegistration({
       programId: program_id,
-      parentName: parent_name,
-      parentEmail: parent_email,
-      parentPhone: parent_phone,
-      notes: notes || null,
+      parentName: fc.contactName.show ? (parent_name || null) : null,
+      parentEmail: recordedEmail,
+      parentPhone: fc.contactPhone.show ? (parent_phone || null) : null,
+      notes: fc.notes.show ? (notes || null) : null,
       children: children.map(c => ({
-        name: c.name,
-        dob: c.dob,
-        healthcareProvider: c.healthcare_provider || null,
-        allergies: c.allergies || null,
+        name: fc.participants.fields.name.show ? (c.name || null) : null,
+        dob: fc.participants.fields.dob.show ? (c.dob || null) : null,
+        healthcareProvider: fc.participants.fields.healthcare.show ? (c.healthcare_provider || null) : null,
+        allergies: fc.participants.fields.allergies.show ? (c.allergies || null) : null,
       })),
       selectedDates: dateList,
       customResponses,
-      emailSubject: `Registration Confirmation — ${programName}`,
-      emailBody,
+      // Pass an email subject/body only when we actually have an address to send to.
+      emailSubject: queueEmail ? `Registration Confirmation — ${programName}` : null,
+      emailBody: queueEmail ? emailBody : null,
       programName,
     });
-    req.session.flash = { type: 'success', msg: 'Registration complete! You will receive a confirmation email shortly.' };
+    const successMsg = queueEmail
+      ? 'Registration complete! You will receive a confirmation email shortly.'
+      : 'Registration complete!';
+    req.session.flash = { type: 'success', msg: successMsg };
     res.redirect(303, '/register/thanks');
   } catch (err) {
     console.error('Registration error:', err);
