@@ -87,6 +87,11 @@
       <textarea name="notes" rows="3"></textarea>
     </div>
 
+    <div id="customQuestionsSection" style="display: none; margin-top: 20px; padding-top: 16px; border-top: 1px solid #e0ddd5;">
+      <h3 style="color: var(--green-dark); margin-bottom: 12px;">Additional Questions</h3>
+      <div id="customQuestionsList"></div>
+    </div>
+
     <div class="form-group" style="margin-top: 16px;">
       <label style="display: flex; align-items: flex-start; gap: 10px; cursor: pointer; font-weight: 400; font-size: 0.9rem;">
         <input type="checkbox" id="termsCheckbox" required style="margin-top: 3px; flex-shrink: 0; width: 18px; height: 18px;">
@@ -155,6 +160,7 @@ document.getElementById('waiverModal').addEventListener('click', function(e) {
         notesPrompt: p.notesPrompt || null,
         singleParticipantOnly: !!p.singleParticipantOnly,
       },
+      questions: p.customQuestions || [],
     };
     return acc;
   }, {})) %>;
@@ -203,6 +209,32 @@ document.getElementById('waiverModal').addEventListener('click', function(e) {
     const desc = data ? data.desc : null;
     if (desc) { descEl.innerHTML = desc; descEl.style.display = 'block'; }
     else { descEl.style.display = 'none'; }
+
+    // Custom questions
+    const questions = (data && data.questions) || [];
+    const cqSection = document.getElementById('customQuestionsSection');
+    const cqList = document.getElementById('customQuestionsList');
+    cqList.innerHTML = '';
+    if (questions.length === 0) {
+      cqSection.style.display = 'none';
+    } else {
+      questions.forEach(function(q, i) {
+        const wrap = document.createElement('div');
+        wrap.className = 'form-group';
+        const reqMark = q.required ? ' <span class="req">*</span>' : '';
+        const helpHtml = q.helpText ? '<div style="font-size: 0.8rem; color: var(--text-light); margin-bottom: 6px;">' + q.helpText.replace(/</g, '&lt;') + '</div>' : '';
+        const reqAttr = q.required ? ' required' : '';
+        const labelSafe = q.label.replace(/</g, '&lt;');
+        const fieldName = 'custom[' + i + ']';
+        if (q.type === 'textarea') {
+          wrap.innerHTML = '<label>' + labelSafe + reqMark + '</label>' + helpHtml + '<textarea name="' + fieldName + '" rows="3"' + reqAttr + '></textarea>';
+        } else {
+          wrap.innerHTML = '<label>' + labelSafe + reqMark + '</label>' + helpHtml + '<input type="text" name="' + fieldName + '"' + reqAttr + '>';
+        }
+        cqList.appendChild(wrap);
+      });
+      cqSection.style.display = 'block';
+    }
   }
 
   sel.addEventListener('change', function() { applyForProgram(sel.value); });

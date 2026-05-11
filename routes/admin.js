@@ -140,6 +140,23 @@ router.post('/programs/:id/reg-description', requireAuth, asyncHandler(async (re
   res.redirect(303, '/admin/programs/' + req.params.id + '/edit');
 }));
 
+router.post('/programs/:id/custom-questions', requireAuth, asyncHandler(async (req, res) => {
+  // Form posts question_label[], question_help[], question_type[], question_required[] in parallel arrays.
+  const labels = [].concat(req.body.question_label || []);
+  const helps = [].concat(req.body.question_help || []);
+  const types = [].concat(req.body.question_type || []);
+  const requiredIdx = new Set([].concat(req.body.question_required_idx || []).map(String));
+  const questions = labels.map((label, i) => ({
+    label,
+    helpText: helps[i] || null,
+    type: types[i] === 'textarea' ? 'textarea' : 'text',
+    required: requiredIdx.has(String(i)),
+  }));
+  await db.updateProgramCustomQuestions(req.params.id, questions);
+  req.session.flash = { type: 'success', msg: 'Custom questions updated.' };
+  res.redirect(303, '/admin/programs/' + req.params.id + '/edit');
+}));
+
 router.post('/programs/:id/form-labels', requireAuth, asyncHandler(async (req, res) => {
   await db.updateProgramFormLabels(req.params.id, {
     participantsHeading: req.body.participants_heading,
@@ -590,7 +607,7 @@ router.get('/roster', requireAuth, asyncHandler(async (req, res) => {
           let age = dayDate.getFullYear() - dob.getFullYear();
           const md = dayDate.getMonth() - dob.getMonth();
           if (md < 0 || (md === 0 && dayDate.getDate() < dob.getDate())) age--;
-          childrenForDay.push({ name: child.name, age, parentName: reg.parentName, parentPhone: reg.parentPhone, allergies: child.allergies || '', notes: reg.notes || '' });
+          childrenForDay.push({ name: child.name, age, parentName: reg.parentName, parentPhone: reg.parentPhone, allergies: child.allergies || '', notes: reg.notes || '', customResponses: (reg.customResponses || []).filter(r => r && r.value) });
         }
       }
     }
@@ -644,7 +661,8 @@ router.post('/messages/delete', requireAuth, asyncHandler(async (req, res) => {
 router.get('/messages/emails/:id/edit', requireAuth, asyncHandler(async (req, res) => {
   const email = await db.getEmail(req.params.id);
   if (!email) return res.status(404).send('Not found');
-  res.render('admin/email_edit', { email });
+  const registration = email.registrationId ? await db.getRegistration(email.registrationId) : null;
+  res.render('admin/email_edit', { email, registration });
 }));
 
 router.post('/messages/emails/:id/update', requireAuth, asyncHandler(async (req, res) => {

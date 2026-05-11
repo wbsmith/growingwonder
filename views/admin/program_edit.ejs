@@ -95,6 +95,109 @@
       <button type="submit" class="btn btn-green btn-sm" style="margin-top: 8px;">Save Form Labels</button>
     </form>
 
+    <!-- Custom Registration Questions -->
+    <h2 style="margin-bottom: 4px;">Additional Registration Questions</h2>
+    <p style="font-size: 0.85rem; color: var(--text-light); margin-bottom: 12px;">Extra questions shown on the registration page for this program. Order matters; add as many as you need.</p>
+    <form method="POST" action="/admin/programs/<%= program.id %>/custom-questions" id="customQuestionsForm" style="margin-bottom: 32px; background: var(--sand); border-radius: var(--radius); padding: 20px;">
+      <div id="questionsList">
+        <% (program.customQuestions || []).forEach((q, i) => { %>
+          <div class="question-row" data-idx="<%= i %>" style="background: var(--white); border-radius: var(--radius); padding: 14px; margin-bottom: 10px; border: 1px solid #e0ddd5;">
+            <div style="display: grid; grid-template-columns: 2fr 2fr 110px 110px 70px; gap: 10px; align-items: end;">
+              <div class="form-group" style="margin: 0;">
+                <label style="font-size: 0.8rem;">Question <span class="req">*</span></label>
+                <input type="text" name="question_label" value="<%= q.label %>" required
+                  style="padding: 8px 10px; border: 1px solid #ccc; border-radius: var(--radius); width: 100%;">
+              </div>
+              <div class="form-group" style="margin: 0;">
+                <label style="font-size: 0.8rem;">Help text <span style="font-weight:normal; color:var(--text-light);">(optional)</span></label>
+                <input type="text" name="question_help" value="<%= q.helpText || '' %>"
+                  style="padding: 8px 10px; border: 1px solid #ccc; border-radius: var(--radius); width: 100%;">
+              </div>
+              <div class="form-group" style="margin: 0;">
+                <label style="font-size: 0.8rem;">Type</label>
+                <select name="question_type" style="padding: 8px 10px; border: 1px solid #ccc; border-radius: var(--radius); width: 100%;">
+                  <option value="text" <%= q.type !== 'textarea' ? 'selected' : '' %>>Short text</option>
+                  <option value="textarea" <%= q.type === 'textarea' ? 'selected' : '' %>>Long text</option>
+                </select>
+              </div>
+              <div class="form-group" style="margin: 0;">
+                <label style="display: flex; align-items: center; gap: 6px; font-size: 0.8rem; cursor: pointer; margin-top: 18px;">
+                  <input type="checkbox" name="question_required_idx" value="<%= i %>" <%= q.required ? 'checked' : '' %>>
+                  Required
+                </label>
+              </div>
+              <div style="margin-top: 18px;">
+                <button type="button" class="btn btn-danger btn-sm remove-question">Remove</button>
+              </div>
+            </div>
+          </div>
+        <% }) %>
+      </div>
+      <a href="#" id="addQuestionBtn" style="display: inline-block; margin-bottom: 12px; color: var(--green-dark); font-weight: 600;">+ Add Question</a>
+      <div>
+        <button type="submit" class="btn btn-green btn-sm">Save Questions</button>
+      </div>
+    </form>
+    <script>
+    (function() {
+      const list = document.getElementById('questionsList');
+      const addBtn = document.getElementById('addQuestionBtn');
+      function nextIdx() {
+        return list.querySelectorAll('.question-row').length;
+      }
+      function buildRow(idx) {
+        const div = document.createElement('div');
+        div.className = 'question-row';
+        div.dataset.idx = idx;
+        div.style.cssText = 'background: var(--white); border-radius: var(--radius); padding: 14px; margin-bottom: 10px; border: 1px solid #e0ddd5;';
+        div.innerHTML = `
+          <div style="display: grid; grid-template-columns: 2fr 2fr 110px 110px 70px; gap: 10px; align-items: end;">
+            <div class="form-group" style="margin: 0;">
+              <label style="font-size: 0.8rem;">Question <span class="req">*</span></label>
+              <input type="text" name="question_label" required style="padding: 8px 10px; border: 1px solid #ccc; border-radius: var(--radius); width: 100%;">
+            </div>
+            <div class="form-group" style="margin: 0;">
+              <label style="font-size: 0.8rem;">Help text <span style="font-weight:normal; color:var(--text-light);">(optional)</span></label>
+              <input type="text" name="question_help" style="padding: 8px 10px; border: 1px solid #ccc; border-radius: var(--radius); width: 100%;">
+            </div>
+            <div class="form-group" style="margin: 0;">
+              <label style="font-size: 0.8rem;">Type</label>
+              <select name="question_type" style="padding: 8px 10px; border: 1px solid #ccc; border-radius: var(--radius); width: 100%;">
+                <option value="text" selected>Short text</option>
+                <option value="textarea">Long text</option>
+              </select>
+            </div>
+            <div class="form-group" style="margin: 0;">
+              <label style="display: flex; align-items: center; gap: 6px; font-size: 0.8rem; cursor: pointer; margin-top: 18px;">
+                <input type="checkbox" name="question_required_idx" value="${idx}">
+                Required
+              </label>
+            </div>
+            <div style="margin-top: 18px;">
+              <button type="button" class="btn btn-danger btn-sm remove-question">Remove</button>
+            </div>
+          </div>
+        `;
+        return div;
+      }
+      addBtn.addEventListener('click', function(e) {
+        e.preventDefault();
+        list.appendChild(buildRow(nextIdx()));
+      });
+      list.addEventListener('click', function(e) {
+        if (e.target.classList.contains('remove-question')) {
+          e.target.closest('.question-row').remove();
+          // Re-index required-checkbox values so they still align with field positions on POST.
+          list.querySelectorAll('.question-row').forEach((row, i) => {
+            row.dataset.idx = i;
+            const cb = row.querySelector('input[name="question_required_idx"]');
+            if (cb) cb.value = i;
+          });
+        }
+      });
+    })();
+    </script>
+
     <!-- Long Description -->
     <h2 style="margin-bottom: 12px;">Description</h2>
     <link href="https://cdn.jsdelivr.net/npm/quill@2/dist/quill.snow.css" rel="stylesheet">

@@ -95,6 +95,24 @@ async function updateProgramRegDescription(id, registrationDescription) {
   }));
 }
 
+async function updateProgramCustomQuestions(id, questions) {
+  // questions: [{label, helpText, type, required}]
+  const sanitized = (questions || [])
+    .filter(q => q && q.label && q.label.trim())
+    .map(q => ({
+      label: String(q.label).trim(),
+      helpText: q.helpText ? String(q.helpText).trim() : null,
+      type: q.type === 'textarea' ? 'textarea' : 'text',
+      required: !!q.required,
+    }));
+  await client.send(new UpdateCommand({
+    TableName: T.programs,
+    Key: { id },
+    UpdateExpression: 'SET customQuestions = :q',
+    ExpressionAttributeValues: { ':q': sanitized },
+  }));
+}
+
 async function updateProgramFormLabels(id, labels) {
   await client.send(new UpdateCommand({
     TableName: T.programs,
@@ -232,6 +250,7 @@ async function createRegistration(data) {
     parentEmail: data.parentEmail,
     parentPhone: data.parentPhone,
     notes: data.notes || null,
+    customResponses: data.customResponses || [],
     children: data.children, // [{name, dob, healthcareProvider, allergies}]
     selectedDates: data.selectedDates, // ["2026-06-15", ...]
     paymentDate: null,
@@ -301,6 +320,13 @@ async function getEnrollments(programId) {
     ...r,
     programName: progMap[r.programId] || 'Unknown',
   }));
+}
+
+async function getRegistration(id) {
+  const { Item } = await client.send(new GetCommand({
+    TableName: T.registrations, Key: { id },
+  }));
+  return Item || null;
 }
 
 async function getRegistrationsByProgram(programId) {
@@ -835,9 +861,9 @@ async function savePage(slug, data) {
 
 module.exports = {
   getAllPrograms, getProgram, getProgramBySlug, createProgram, deleteProgram,
-  updateProgramDescription, updateProgramRegDescription, updateProgramFormLabels, updateProgramHero, addProgramMedia, removeProgramMedia,
+  updateProgramDescription, updateProgramRegDescription, updateProgramFormLabels, updateProgramCustomQuestions, updateProgramHero, addProgramMedia, removeProgramMedia,
   getDatesByProgram, addDates, updateDateCapacity, removeDate,
-  createRegistration, getEnrollments, getRegistrationsByProgram,
+  createRegistration, getRegistration, getEnrollments, getRegistrationsByProgram,
   countRegistrationsByProgram, deleteRegistration, mergeRegistrations, autoMergeRegistrations, removeDateFromRegistration, updatePayment,
   getAllEmails, getEmail, updateEmailDraft, addEmailAttachment, removeEmailAttachment,
   markEmailSent, markEmailFailed,

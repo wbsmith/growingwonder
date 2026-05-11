@@ -209,7 +209,13 @@
             <td style="text-align: center;"><%= child.age %></td>
             <td><%= child.parentName %></td>
             <td><%= child.parentPhone %></td>
-            <td><%= [child.allergies, child.notes].filter(Boolean).join('; ') %></td>
+            <td>
+              <% const baseNotes = [child.allergies, child.notes].filter(Boolean).join('; '); %>
+              <% if (baseNotes) { %><div><%= baseNotes %></div><% } %>
+              <% (child.customResponses || []).forEach(r => { %>
+                <div style="margin-top: 2px; font-size: 10pt;"><strong><%= r.label %>:</strong> <%= r.value %></div>
+              <% }) %>
+            </td>
           </tr>
         <% }) %>
       </tbody>

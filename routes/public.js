@@ -115,6 +115,23 @@ router.post('/register', publicFormLimiter, asyncHandler(async (req, res) => {
     return res.redirect(303, regUrl);
   }
 
+  // Custom questions: pair the program's questions (in order) with the user's submitted values.
+  // Storing label+value snapshot keeps the wording with the registration even if the program edits its questions later.
+  const programQuestions = (program && program.customQuestions) || [];
+  const rawCustom = req.body.custom || {};
+  const customResponses = programQuestions.map((q, i) => ({
+    label: q.label,
+    value: (rawCustom[i] || '').toString().trim(),
+  }));
+  const missingRequired = programQuestions
+    .map((q, i) => ({ q, value: customResponses[i].value }))
+    .filter(x => x.q.required && !x.value)
+    .map(x => x.q.label);
+  if (missingRequired.length > 0) {
+    req.session.flash = { type: 'error', msg: 'Please answer the required question(s): ' + missingRequired.join(', ') + '.' };
+    return res.redirect(303, regUrl);
+  }
+
   // Compose confirmation email
   const dateListStr = dateList.sort().map(d => {
     const dt = new Date(d + 'T00:00:00');
@@ -128,12 +145,16 @@ router.post('/register', publicFormLimiter, asyncHandler(async (req, res) => {
 
   const programName = program ? program.name : 'our program';
 
+  const responsesBlock = customResponses.filter(r => r.value).length > 0
+    ? '\n\nYour responses:\n' + customResponses.filter(r => r.value).map(r => `  • ${r.label}: ${r.value}`).join('\n')
+    : '';
+
   const emailBody = `Dear ${parent_name},
 
 Thank you for registering ${childListStr} for ${programName}!
 
 Enrolled dates:
-  ${dateListStr}
+  ${dateListStr}${responsesBlock}
 
 We're excited to have ${childListStr} join us. Please arrive by 8:45 AM on the first day. Don't forget sunscreen, a water bottle, and a sense of adventure!
 
@@ -156,6 +177,7 @@ ${site.name} Team`;
         allergies: c.allergies || null,
       })),
       selectedDates: dateList,
+      customResponses,
       emailSubject: `Registration Confirmation — ${programName}`,
       emailBody,
       programName,

@@ -60,6 +60,14 @@
                   <% (e.children || []).forEach(c => { %>
                     <div style="font-size: 0.85rem;"><strong><%= c.name %></strong> (<%= c.dob %>)</div>
                   <% }) %>
+                  <% const responses = (e.customResponses || []).filter(r => r && r.value); %>
+                  <% if (responses.length > 0) { %>
+                    <div style="margin-top: 6px; padding: 6px 8px; background: var(--sand); border-radius: 4px; font-size: 0.75rem; line-height: 1.4;">
+                      <% responses.forEach(r => { %>
+                        <div><strong><%= r.label %>:</strong> <%= r.value %></div>
+                      <% }) %>
+                    </div>
+                  <% } %>
                 </td>
                 <td><%= e.parentName %></td>
                 <td><%= e.parentEmail %></td>
