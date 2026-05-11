@@ -111,19 +111,21 @@
             style="padding: 8px 12px; border: 1px solid #ccc; border-radius: var(--radius); width: 100%;">
         </div>
       </div>
-      <div class="form-group" style="margin-top: 8px;">
-        <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-weight: 400;">
-          <input type="checkbox" name="single_participant_only" <%= program.singleParticipantOnly ? 'checked' : '' %>>
+      <div style="margin-top: 12px;">
+        <label style="display: inline-flex; align-items: center; gap: 8px; cursor: pointer; font-weight: 400;">
+          <input type="checkbox" name="single_participant_only" <%= program.singleParticipantOnly ? 'checked' : '' %>
+            style="width: auto; padding: 0; margin: 0; border: none;">
           Single participant only <span style="color: var(--text-light); font-size: 0.85rem;">(hides the "+ Add Another" link)</span>
         </label>
       </div>
-      <div class="form-group" style="margin-top: 4px;">
-        <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-weight: 400;">
+      <div style="margin-top: 6px;">
+        <label style="display: inline-flex; align-items: center; gap: 8px; cursor: pointer; font-weight: 400;">
           <%
             // Default to true when the field has never been saved (existing programs predate this flag).
             const showSelector = program.showProgramSelector === undefined ? true : !!program.showProgramSelector;
           %>
-          <input type="checkbox" name="show_program_selector" <%= showSelector ? 'checked' : '' %>>
+          <input type="checkbox" name="show_program_selector" <%= showSelector ? 'checked' : '' %>
+            style="width: auto; padding: 0; margin: 0; border: none;">
           Show program selector on registration page <span style="color: var(--text-light); font-size: 0.85rem;">(uncheck to lock visitors to this program when they arrive via its direct URL)</span>
         </label>
       </div>
@@ -155,9 +157,10 @@
                   <option value="textarea" <%= q.type === 'textarea' ? 'selected' : '' %>>Long text</option>
                 </select>
               </div>
-              <div class="form-group" style="margin: 0;">
-                <label style="display: flex; align-items: center; gap: 6px; font-size: 0.8rem; cursor: pointer; margin-top: 18px;">
-                  <input type="checkbox" name="question_required_idx" value="<%= i %>" <%= q.required ? 'checked' : '' %>>
+              <div style="margin: 0;">
+                <label style="display: inline-flex; align-items: center; gap: 6px; font-size: 0.8rem; cursor: pointer; margin-top: 18px;">
+                  <input type="checkbox" name="question_required_idx" value="<%= i %>" <%= q.required ? 'checked' : '' %>
+                    style="width: auto; padding: 0; margin: 0; border: none;">
                   Required
                 </label>
               </div>
@@ -202,9 +205,9 @@
                 <option value="textarea">Long text</option>
               </select>
             </div>
-            <div class="form-group" style="margin: 0;">
-              <label style="display: flex; align-items: center; gap: 6px; font-size: 0.8rem; cursor: pointer; margin-top: 18px;">
-                <input type="checkbox" name="question_required_idx" value="${idx}">
+            <div style="margin: 0;">
+              <label style="display: inline-flex; align-items: center; gap: 6px; font-size: 0.8rem; cursor: pointer; margin-top: 18px;">
+                <input type="checkbox" name="question_required_idx" value="${idx}" style="width: auto; padding: 0; margin: 0; border: none;">
                 Required
               </label>
             </div>
