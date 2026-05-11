@@ -95,6 +95,21 @@ async function updateProgramRegDescription(id, registrationDescription) {
   }));
 }
 
+async function updateProgramFormLabels(id, labels) {
+  await client.send(new UpdateCommand({
+    TableName: T.programs,
+    Key: { id },
+    UpdateExpression: 'SET participantsHeading = :ph, participantSingularLabel = :psl, contactHeading = :ch, notesPrompt = :np, singleParticipantOnly = :spo',
+    ExpressionAttributeValues: {
+      ':ph': labels.participantsHeading || null,
+      ':psl': labels.participantSingularLabel || null,
+      ':ch': labels.contactHeading || null,
+      ':np': labels.notesPrompt || null,
+      ':spo': !!labels.singleParticipantOnly,
+    },
+  }));
+}
+
 async function updateProgramHero(id, data) {
   const expr = [];
   const vals = {};
@@ -820,7 +835,7 @@ async function savePage(slug, data) {
 
 module.exports = {
   getAllPrograms, getProgram, getProgramBySlug, createProgram, deleteProgram,
-  updateProgramDescription, updateProgramRegDescription, updateProgramHero, addProgramMedia, removeProgramMedia,
+  updateProgramDescription, updateProgramRegDescription, updateProgramFormLabels, updateProgramHero, addProgramMedia, removeProgramMedia,
   getDatesByProgram, addDates, updateDateCapacity, removeDate,
   createRegistration, getEnrollments, getRegistrationsByProgram,
   countRegistrationsByProgram, deleteRegistration, mergeRegistrations, autoMergeRegistrations, removeDateFromRegistration, updatePayment,

@@ -34,7 +34,7 @@
     <div class="form-fields-narrow">
     <div class="form-row">
       <div class="form-group">
-        <label>Parent/Guardian Name <span class="req">*</span></label>
+        <label id="contactNameLabel">Parent/Guardian Name <span class="req">*</span></label>
         <input type="text" name="parent_name" required>
       </div>
       <div class="form-group">
@@ -55,11 +55,11 @@
     </div>
 
     <div id="childrenSection">
-      <h3 style="color: var(--green-dark); margin-bottom: 10px;">Children</h3>
+      <h3 id="participantsHeading" style="color: var(--green-dark); margin-bottom: 10px;">Children</h3>
       <div class="child-entry" data-index="0">
         <div class="form-row">
           <div class="form-group">
-            <label>Child's Name <span class="req">*</span></label>
+            <label class="participant-name-label">Child's Name <span class="req">*</span></label>
             <input type="text" name="children[0][name]" required>
           </div>
           <div class="form-group">
@@ -138,24 +138,75 @@ document.getElementById('waiverModal').addEventListener('click', function(e) {
 
 <script>
 (function() {
-  const programData = <%- JSON.stringify(programs.reduce((acc, p) => {
-    acc[p.id] = p.registrationDescription || null;
+  const DEFAULT_LABELS = {
+    participantsHeading: 'Children',
+    participantSingularLabel: 'Child',
+    contactHeading: 'Parent/Guardian Name',
+    notesPrompt: 'Tell us a little something about your child',
+    singleParticipantOnly: false,
+  };
+  const PROGRAM_DATA = <%- JSON.stringify(programs.reduce((acc, p) => {
+    acc[p.id] = {
+      desc: p.registrationDescription || null,
+      labels: {
+        participantsHeading: p.participantsHeading || null,
+        participantSingularLabel: p.participantSingularLabel || null,
+        contactHeading: p.contactHeading || null,
+        notesPrompt: p.notesPrompt || null,
+        singleParticipantOnly: !!p.singleParticipantOnly,
+      },
+    };
     return acc;
   }, {})) %>;
+
   const sel = document.getElementById('programSelect');
   const descEl = document.getElementById('programDescription');
 
-  function showDesc() {
-    const desc = programData[sel.value];
-    if (desc) {
-      descEl.innerHTML = desc;
-      descEl.style.display = 'block';
-    } else {
-      descEl.style.display = 'none';
-    }
+  // Expose current labels so children.js can read them when adding entries
+  // and recomputing the notes prompt.
+  window.currentProgramLabels = Object.assign({}, DEFAULT_LABELS);
+
+  function pickLabel(programLabels, key) {
+    return (programLabels && programLabels[key]) || DEFAULT_LABELS[key];
   }
-  sel.addEventListener('change', showDesc);
-  if (sel.value) showDesc();
+
+  function applyForProgram(programId) {
+    const data = PROGRAM_DATA[programId];
+    const labels = data ? data.labels : null;
+    const merged = {
+      participantsHeading: pickLabel(labels, 'participantsHeading'),
+      participantSingularLabel: pickLabel(labels, 'participantSingularLabel'),
+      contactHeading: pickLabel(labels, 'contactHeading'),
+      notesPrompt: pickLabel(labels, 'notesPrompt'),
+      singleParticipantOnly: labels ? !!labels.singleParticipantOnly : false,
+    };
+    window.currentProgramLabels = merged;
+
+    document.getElementById('participantsHeading').textContent = merged.participantsHeading;
+    const contactLbl = document.getElementById('contactNameLabel');
+    contactLbl.innerHTML = merged.contactHeading + ' <span class="req">*</span>';
+    document.querySelectorAll('.participant-name-label').forEach(function(el) {
+      el.innerHTML = merged.participantSingularLabel + "'s Name <span class=\"req\">*</span>";
+    });
+    const notesLbl = document.getElementById('notesLabel');
+    if (notesLbl) {
+      if (typeof window.updateNotesLabel === 'function') {
+        window.updateNotesLabel();
+      } else {
+        notesLbl.textContent = merged.notesPrompt;
+      }
+    }
+    const addBtn = document.getElementById('addChildBtn');
+    if (addBtn) addBtn.style.display = merged.singleParticipantOnly ? 'none' : '';
+
+    // Description block
+    const desc = data ? data.desc : null;
+    if (desc) { descEl.innerHTML = desc; descEl.style.display = 'block'; }
+    else { descEl.style.display = 'none'; }
+  }
+
+  sel.addEventListener('change', function() { applyForProgram(sel.value); });
+  applyForProgram(sel.value);
 })();
 </script>
 <script src="/js/calendar.js"></script>

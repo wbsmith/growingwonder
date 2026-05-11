@@ -140,6 +140,18 @@ router.post('/programs/:id/reg-description', requireAuth, asyncHandler(async (re
   res.redirect(303, '/admin/programs/' + req.params.id + '/edit');
 }));
 
+router.post('/programs/:id/form-labels', requireAuth, asyncHandler(async (req, res) => {
+  await db.updateProgramFormLabels(req.params.id, {
+    participantsHeading: req.body.participants_heading,
+    participantSingularLabel: req.body.participant_singular_label,
+    contactHeading: req.body.contact_heading,
+    notesPrompt: req.body.notes_prompt,
+    singleParticipantOnly: req.body.single_participant_only === 'on',
+  });
+  req.session.flash = { type: 'success', msg: 'Form labels updated.' };
+  res.redirect(303, '/admin/programs/' + req.params.id + '/edit');
+}));
+
 router.post('/programs/:id/upload-url', requireAuth, asyncHandler(async (req, res) => {
   const { filename, contentType } = req.body;
   const result = await storage.getUploadUrl(req.params.id, filename, contentType);

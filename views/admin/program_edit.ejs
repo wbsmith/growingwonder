@@ -60,6 +60,41 @@
       <button type="submit" class="btn btn-green btn-sm" style="margin-top: 12px;">Save Registration Description</button>
     </form>
 
+    <!-- Registration Form Labels -->
+    <h2 style="margin-bottom: 4px;">Registration Form Labels</h2>
+    <p style="font-size: 0.85rem; color: var(--text-light); margin-bottom: 12px;">Override the default labels on the registration form for this program. Leave any field blank to use the default.</p>
+    <form method="POST" action="/admin/programs/<%= program.id %>/form-labels" style="margin-bottom: 32px; background: var(--sand); border-radius: var(--radius); padding: 20px;">
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+        <div class="form-group">
+          <label>Participants Section Heading <span style="font-weight:normal; color:var(--text-light);">(default: Children)</span></label>
+          <input type="text" name="participants_heading" value="<%= program.participantsHeading || '' %>" placeholder="Children"
+            style="padding: 8px 12px; border: 1px solid #ccc; border-radius: var(--radius); width: 100%;">
+        </div>
+        <div class="form-group">
+          <label>Participant Label, Singular <span style="font-weight:normal; color:var(--text-light);">(default: Child)</span></label>
+          <input type="text" name="participant_singular_label" value="<%= program.participantSingularLabel || '' %>" placeholder="Child"
+            style="padding: 8px 12px; border: 1px solid #ccc; border-radius: var(--radius); width: 100%;">
+        </div>
+        <div class="form-group">
+          <label>Contact Name Label <span style="font-weight:normal; color:var(--text-light);">(default: Parent/Guardian Name)</span></label>
+          <input type="text" name="contact_heading" value="<%= program.contactHeading || '' %>" placeholder="Parent/Guardian Name"
+            style="padding: 8px 12px; border: 1px solid #ccc; border-radius: var(--radius); width: 100%;">
+        </div>
+        <div class="form-group">
+          <label>Notes Prompt <span style="font-weight:normal; color:var(--text-light);">(default: Tell us a little something about your child)</span></label>
+          <input type="text" name="notes_prompt" value="<%= program.notesPrompt || '' %>" placeholder="Tell us a little something about your child"
+            style="padding: 8px 12px; border: 1px solid #ccc; border-radius: var(--radius); width: 100%;">
+        </div>
+      </div>
+      <div class="form-group" style="margin-top: 8px;">
+        <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-weight: 400;">
+          <input type="checkbox" name="single_participant_only" <%= program.singleParticipantOnly ? 'checked' : '' %>>
+          Single participant only <span style="color: var(--text-light); font-size: 0.85rem;">(hides the "+ Add Another" link)</span>
+        </label>
+      </div>
+      <button type="submit" class="btn btn-green btn-sm" style="margin-top: 8px;">Save Form Labels</button>
+    </form>
+
     <!-- Long Description -->
     <h2 style="margin-bottom: 12px;">Description</h2>
     <link href="https://cdn.jsdelivr.net/npm/quill@2/dist/quill.snow.css" rel="stylesheet">
