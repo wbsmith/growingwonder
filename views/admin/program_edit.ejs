@@ -85,11 +85,46 @@
           <input type="text" name="notes_prompt" value="<%= program.notesPrompt || '' %>" placeholder="Tell us a little something about your child"
             style="padding: 8px 12px; border: 1px solid #ccc; border-radius: var(--radius); width: 100%;">
         </div>
+        <div class="form-group">
+          <label>Email Label <span style="font-weight:normal; color:var(--text-light);">(default: Email)</span></label>
+          <input type="text" name="email_label" value="<%= program.emailLabel || '' %>" placeholder="Email"
+            style="padding: 8px 12px; border: 1px solid #ccc; border-radius: var(--radius); width: 100%;">
+        </div>
+        <div class="form-group">
+          <label>Phone Label <span style="font-weight:normal; color:var(--text-light);">(default: Phone)</span></label>
+          <input type="text" name="phone_label" value="<%= program.phoneLabel || '' %>" placeholder="Phone"
+            style="padding: 8px 12px; border: 1px solid #ccc; border-radius: var(--radius); width: 100%;">
+        </div>
+        <div class="form-group">
+          <label>Date-of-Birth Label <span style="font-weight:normal; color:var(--text-light);">(default: Date of Birth)</span></label>
+          <input type="text" name="dob_label" value="<%= program.dobLabel || '' %>" placeholder="Date of Birth"
+            style="padding: 8px 12px; border: 1px solid #ccc; border-radius: var(--radius); width: 100%;">
+        </div>
+        <div class="form-group">
+          <label>Healthcare Provider Label <span style="font-weight:normal; color:var(--text-light);">(default: Healthcare Provider)</span></label>
+          <input type="text" name="healthcare_label" value="<%= program.healthcareLabel || '' %>" placeholder="Healthcare Provider"
+            style="padding: 8px 12px; border: 1px solid #ccc; border-radius: var(--radius); width: 100%;">
+        </div>
+        <div class="form-group">
+          <label>Allergies Label <span style="font-weight:normal; color:var(--text-light);">(default: Allergies)</span></label>
+          <input type="text" name="allergies_label" value="<%= program.allergiesLabel || '' %>" placeholder="Allergies"
+            style="padding: 8px 12px; border: 1px solid #ccc; border-radius: var(--radius); width: 100%;">
+        </div>
       </div>
       <div class="form-group" style="margin-top: 8px;">
         <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-weight: 400;">
           <input type="checkbox" name="single_participant_only" <%= program.singleParticipantOnly ? 'checked' : '' %>>
           Single participant only <span style="color: var(--text-light); font-size: 0.85rem;">(hides the "+ Add Another" link)</span>
+        </label>
+      </div>
+      <div class="form-group" style="margin-top: 4px;">
+        <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-weight: 400;">
+          <%
+            // Default to true when the field has never been saved (existing programs predate this flag).
+            const showSelector = program.showProgramSelector === undefined ? true : !!program.showProgramSelector;
+          %>
+          <input type="checkbox" name="show_program_selector" <%= showSelector ? 'checked' : '' %>>
+          Show program selector on registration page <span style="color: var(--text-light); font-size: 0.85rem;">(uncheck to lock visitors to this program when they arrive via its direct URL)</span>
         </label>
       </div>
       <button type="submit" class="btn btn-green btn-sm" style="margin-top: 8px;">Save Form Labels</button>

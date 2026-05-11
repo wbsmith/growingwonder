@@ -117,13 +117,20 @@ async function updateProgramFormLabels(id, labels) {
   await client.send(new UpdateCommand({
     TableName: T.programs,
     Key: { id },
-    UpdateExpression: 'SET participantsHeading = :ph, participantSingularLabel = :psl, contactHeading = :ch, notesPrompt = :np, singleParticipantOnly = :spo',
+    UpdateExpression: 'SET participantsHeading = :ph, participantSingularLabel = :psl, contactHeading = :ch, notesPrompt = :np, singleParticipantOnly = :spo, emailLabel = :el, phoneLabel = :pl, dobLabel = :dl, healthcareLabel = :hl, allergiesLabel = :al, showProgramSelector = :sps',
     ExpressionAttributeValues: {
       ':ph': labels.participantsHeading || null,
       ':psl': labels.participantSingularLabel || null,
       ':ch': labels.contactHeading || null,
       ':np': labels.notesPrompt || null,
       ':spo': !!labels.singleParticipantOnly,
+      ':el': labels.emailLabel || null,
+      ':pl': labels.phoneLabel || null,
+      ':dl': labels.dobLabel || null,
+      ':hl': labels.healthcareLabel || null,
+      ':al': labels.allergiesLabel || null,
+      // Default true when undefined so existing programs keep their selector visible.
+      ':sps': labels.showProgramSelector === undefined ? true : !!labels.showProgramSelector,
     },
   }));
 }

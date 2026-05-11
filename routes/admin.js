@@ -164,6 +164,12 @@ router.post('/programs/:id/form-labels', requireAuth, asyncHandler(async (req, r
     contactHeading: req.body.contact_heading,
     notesPrompt: req.body.notes_prompt,
     singleParticipantOnly: req.body.single_participant_only === 'on',
+    emailLabel: req.body.email_label,
+    phoneLabel: req.body.phone_label,
+    dobLabel: req.body.dob_label,
+    healthcareLabel: req.body.healthcare_label,
+    allergiesLabel: req.body.allergies_label,
+    showProgramSelector: req.body.show_program_selector === 'on',
   });
   req.session.flash = { type: 'success', msg: 'Form labels updated.' };
   res.redirect(303, '/admin/programs/' + req.params.id + '/edit');

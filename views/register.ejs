@@ -3,19 +3,27 @@
 <%- include('_nav') %>
 
 <div class="form-page">
-  <h1>Registration</h1>
-  <p class="lead">Select a program and dates, then fill in your information below.</p>
+  <% if (hideSelector && selectedProgram) { %>
+    <h1>Registration: <%= selectedProgram.name %></h1>
+  <% } else { %>
+    <h1>Registration</h1>
+    <p class="lead">Select a program and dates, then fill in your information below.</p>
+  <% } %>
 
   <form method="POST" action="/register" id="regForm" novalidate>
-    <div class="form-group">
-      <label>Program <span class="req">*</span></label>
-      <select name="program_id" id="programSelect" required>
-        <option value="">Choose a program...</option>
-        <% programs.forEach(p => { %>
-          <option value="<%= p.id %>" <%= selectedProgramId === p.id ? 'selected' : '' %>><%= p.name %></option>
-        <% }) %>
-      </select>
-    </div>
+    <% if (hideSelector && selectedProgram) { %>
+      <input type="hidden" name="program_id" id="programSelect" value="<%= selectedProgram.id %>">
+    <% } else { %>
+      <div class="form-group">
+        <label>Program <span class="req">*</span></label>
+        <select name="program_id" id="programSelect" required>
+          <option value="">Choose a program...</option>
+          <% programs.forEach(p => { %>
+            <option value="<%= p.id %>" <%= selectedProgramId === p.id ? 'selected' : '' %>><%= p.name %></option>
+          <% }) %>
+        </select>
+      </div>
+    <% } %>
 
     <div id="programDescription" class="program-description" style="display: none; padding: 12px 16px; background: var(--sand); border-radius: var(--radius); margin-bottom: 14px; font-size: 0.9rem; color: var(--text); line-height: 1.5;"></div>
 
@@ -38,7 +46,7 @@
         <input type="text" name="parent_name" required>
       </div>
       <div class="form-group">
-        <label>Email <span class="req">*</span></label>
+        <label id="emailLabel">Email <span class="req">*</span></label>
         <input type="email" name="parent_email" id="parentEmail" required
           pattern="[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}"
           title="Please enter a valid email address">
@@ -47,7 +55,7 @@
     </div>
 
     <div class="form-group">
-      <label>Phone <span class="req">*</span></label>
+      <label id="phoneLabel">Phone <span class="req">*</span></label>
       <input type="tel" name="parent_phone" id="parentPhone" required
         placeholder="(555) 123-4567"
         title="Please enter a 10-digit US phone number">
@@ -63,17 +71,17 @@
             <input type="text" name="children[0][name]" required>
           </div>
           <div class="form-group">
-            <label>Date of Birth <span class="req">*</span></label>
+            <label class="dob-label">Date of Birth <span class="req">*</span></label>
             <input type="date" name="children[0][dob]" required>
           </div>
         </div>
         <div class="form-row">
           <div class="form-group">
-            <label>Healthcare Provider</label>
+            <label class="healthcare-label">Healthcare Provider</label>
             <input type="text" name="children[0][healthcare_provider]">
           </div>
           <div class="form-group">
-            <label>Allergies</label>
+            <label class="allergies-label">Allergies</label>
             <input type="text" name="children[0][allergies]">
           </div>
         </div>
@@ -149,6 +157,11 @@ document.getElementById('waiverModal').addEventListener('click', function(e) {
     contactHeading: 'Parent/Guardian Name',
     notesPrompt: 'Tell us a little something about your child',
     singleParticipantOnly: false,
+    emailLabel: 'Email',
+    phoneLabel: 'Phone',
+    dobLabel: 'Date of Birth',
+    healthcareLabel: 'Healthcare Provider',
+    allergiesLabel: 'Allergies',
   };
   const PROGRAM_DATA = <%- JSON.stringify(programs.reduce((acc, p) => {
     acc[p.id] = {
@@ -159,6 +172,11 @@ document.getElementById('waiverModal').addEventListener('click', function(e) {
         contactHeading: p.contactHeading || null,
         notesPrompt: p.notesPrompt || null,
         singleParticipantOnly: !!p.singleParticipantOnly,
+        emailLabel: p.emailLabel || null,
+        phoneLabel: p.phoneLabel || null,
+        dobLabel: p.dobLabel || null,
+        healthcareLabel: p.healthcareLabel || null,
+        allergiesLabel: p.allergiesLabel || null,
       },
       questions: p.customQuestions || [],
     };
@@ -185,14 +203,32 @@ document.getElementById('waiverModal').addEventListener('click', function(e) {
       contactHeading: pickLabel(labels, 'contactHeading'),
       notesPrompt: pickLabel(labels, 'notesPrompt'),
       singleParticipantOnly: labels ? !!labels.singleParticipantOnly : false,
+      emailLabel: pickLabel(labels, 'emailLabel'),
+      phoneLabel: pickLabel(labels, 'phoneLabel'),
+      dobLabel: pickLabel(labels, 'dobLabel'),
+      healthcareLabel: pickLabel(labels, 'healthcareLabel'),
+      allergiesLabel: pickLabel(labels, 'allergiesLabel'),
     };
     window.currentProgramLabels = merged;
 
     document.getElementById('participantsHeading').textContent = merged.participantsHeading;
     const contactLbl = document.getElementById('contactNameLabel');
     contactLbl.innerHTML = merged.contactHeading + ' <span class="req">*</span>';
+    const emailLbl = document.getElementById('emailLabel');
+    if (emailLbl) emailLbl.innerHTML = merged.emailLabel + ' <span class="req">*</span>';
+    const phoneLbl = document.getElementById('phoneLabel');
+    if (phoneLbl) phoneLbl.innerHTML = merged.phoneLabel + ' <span class="req">*</span>';
     document.querySelectorAll('.participant-name-label').forEach(function(el) {
       el.innerHTML = merged.participantSingularLabel + "'s Name <span class=\"req\">*</span>";
+    });
+    document.querySelectorAll('.dob-label').forEach(function(el) {
+      el.innerHTML = merged.dobLabel + ' <span class="req">*</span>';
+    });
+    document.querySelectorAll('.healthcare-label').forEach(function(el) {
+      el.textContent = merged.healthcareLabel;
+    });
+    document.querySelectorAll('.allergies-label').forEach(function(el) {
+      el.textContent = merged.allergiesLabel;
     });
     const notesLbl = document.getElementById('notesLabel');
     if (notesLbl) {

@@ -45,13 +45,12 @@ router.get('/register/thanks', (req, res) => {
 router.get('/register/:slug?', asyncHandler(async (req, res) => {
   const programs = await db.getAllPrograms();
   let selectedProgramId = null;
+  let arrivedViaSlug = false;
 
   if (req.params.slug) {
-    // /register/nature-camps
     const program = programs.find(p => p.slug === req.params.slug);
-    if (program) selectedProgramId = program.id;
+    if (program) { selectedProgramId = program.id; arrivedViaSlug = true; }
   } else if (req.query.program) {
-    // /register?program=prog_xxx (backward compat) → redirect to slug URL
     const program = programs.find(p => p.id === req.query.program);
     if (program && program.slug) {
       return res.redirect(301, '/register/' + program.slug);
@@ -59,7 +58,12 @@ router.get('/register/:slug?', asyncHandler(async (req, res) => {
     selectedProgramId = req.query.program;
   }
 
-  res.render('register', { programs, selectedProgramId });
+  // Hide the program selector only when a program is locked-in via its slug URL
+  // AND that program has explicitly opted out via the admin toggle.
+  const selectedProgram = selectedProgramId ? programs.find(p => p.id === selectedProgramId) : null;
+  const hideSelector = !!(arrivedViaSlug && selectedProgram && selectedProgram.showProgramSelector === false);
+
+  res.render('register', { programs, selectedProgramId, selectedProgram, hideSelector });
 }));
 
 router.post('/register', publicFormLimiter, asyncHandler(async (req, res) => {
