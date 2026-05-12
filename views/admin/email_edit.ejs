@@ -14,14 +14,46 @@
       <% if (email.sentAt) { %><br><strong>Sent:</strong> <%= email.sentAt %><% } %>
     </div>
 
-    <% const responses = (registration && registration.customResponses || []).filter(r => r && r.value); %>
-    <% if (responses.length > 0) { %>
-      <div style="margin: 12px 0 20px; padding: 12px 16px; background: var(--sand); border-radius: var(--radius); font-size: 0.9rem;">
-        <strong style="color: var(--green-dark); display: block; margin-bottom: 6px;">Registration responses</strong>
-        <% responses.forEach(r => { %>
-          <div style="margin-top: 4px;"><strong><%= r.label %>:</strong> <%= r.value %></div>
-        <% }) %>
-      </div>
+    <% if (registration) { %>
+      <%
+        const responses = (registration.customResponses || []).filter(r => r && r.value);
+        const participants = (registration.children || []).filter(c => c && (c.name || c.dob || c.healthcareProvider || c.allergies));
+        const dates = (registration.selectedDates || []).slice().sort();
+        const formattedDates = dates.map(d => {
+          const dt = new Date(d + 'T00:00:00');
+          return dt.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
+        });
+        const hasAny = registration.parentName || registration.parentEmail || registration.parentPhone || participants.length > 0 || dates.length > 0 || registration.notes || responses.length > 0;
+      %>
+      <% if (hasAny) { %>
+        <div style="margin: 12px 0 20px; padding: 14px 18px; background: var(--sand); border-radius: var(--radius); font-size: 0.9rem; line-height: 1.55;">
+          <strong style="color: var(--green-dark); display: block; margin-bottom: 8px; font-size: 0.95rem;">Submission details</strong>
+          <% if (registration.parentName) { %><div><strong>Contact name:</strong> <%= registration.parentName %></div><% } %>
+          <% if (registration.parentEmail) { %><div><strong>Contact email:</strong> <%= registration.parentEmail %></div><% } %>
+          <% if (registration.parentPhone) { %><div><strong>Contact phone:</strong> <%= registration.parentPhone %></div><% } %>
+          <% participants.forEach((c, i) => { %>
+            <div style="margin-top: 6px;">
+              <strong>Participant <%= participants.length > 1 ? (i + 1) : '' %>:</strong>
+              <% const bits = []; if (c.name) bits.push(c.name); if (c.dob) bits.push('DOB ' + c.dob); if (c.healthcareProvider) bits.push('Healthcare: ' + c.healthcareProvider); if (c.allergies) bits.push('Allergies: ' + c.allergies); %>
+              <%= bits.join(' · ') %>
+            </div>
+          <% }) %>
+          <% if (formattedDates.length > 0) { %>
+            <div style="margin-top: 6px;"><strong>Dates:</strong> <%= formattedDates.join('; ') %></div>
+          <% } %>
+          <% if (registration.notes) { %>
+            <div style="margin-top: 6px;"><strong>Notes:</strong> <%= registration.notes %></div>
+          <% } %>
+          <% if (responses.length > 0) { %>
+            <div style="margin-top: 10px; padding-top: 8px; border-top: 1px solid #e0ddd5;">
+              <strong style="color: var(--green-dark);">Responses:</strong>
+              <% responses.forEach(r => { %>
+                <div style="margin-top: 2px;"><strong><%= r.label %>:</strong> <%= r.value %></div>
+              <% }) %>
+            </div>
+          <% } %>
+        </div>
+      <% } %>
     <% } %>
 
     <% if (email.status === 'sent') { %>

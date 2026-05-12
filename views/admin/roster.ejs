@@ -125,9 +125,10 @@
       return parts[0] + ' ' + parts[parts.length - 1][0] + '.';
     }
 
-    // Age distribution
+    // Age distribution (skip null ages)
     const ageCounts = {};
     day.children.forEach(c => {
+      if (c.age == null) return;
       ageCounts[c.age] = (ageCounts[c.age] || 0) + 1;
     });
     const ageSummary = Object.keys(ageCounts)
@@ -206,7 +207,7 @@
         <% day.children.forEach(child => { %>
           <tr>
             <td><%= child.name %></td>
-            <td style="text-align: center;"><%= child.age %></td>
+            <td style="text-align: center;"><%= child.age == null ? '—' : child.age %></td>
             <td><%= child.parentName %></td>
             <td><%= child.parentPhone %></td>
             <td>

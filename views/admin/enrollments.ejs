@@ -58,16 +58,12 @@
                 <td><%= e.programName %></td>
                 <td>
                   <% (e.children || []).forEach(c => { %>
-                    <div style="font-size: 0.85rem;"><strong><%= c.name %></strong> (<%= c.dob %>)</div>
-                  <% }) %>
-                  <% const responses = (e.customResponses || []).filter(r => r && r.value); %>
-                  <% if (responses.length > 0) { %>
-                    <div style="margin-top: 6px; padding: 6px 8px; background: var(--sand); border-radius: 4px; font-size: 0.75rem; line-height: 1.4;">
-                      <% responses.forEach(r => { %>
-                        <div><strong><%= r.label %>:</strong> <%= r.value %></div>
-                      <% }) %>
+                    <div style="font-size: 0.85rem;">
+                      <% if (c.name) { %><strong><%= c.name %></strong><% if (c.dob) { %> (<%= c.dob %>)<% } %>
+                      <% } else if (c.dob) { %><span style="color: var(--text-light);"><%= c.dob %></span>
+                      <% } %>
                     </div>
-                  <% } %>
+                  <% }) %>
                 </td>
                 <td><%= e.parentName %></td>
                 <td><%= e.parentEmail %></td>
@@ -98,6 +94,24 @@
                   </form>
                 </td>
               </tr>
+              <% const responses = (e.customResponses || []).filter(r => r && r.value); %>
+              <% const extraNotes = e.notes; %>
+              <% if (responses.length > 0 || extraNotes) { %>
+                <tr>
+                  <td></td>
+                  <td colspan="8" style="background: var(--sand); padding: 8px 12px; font-size: 0.78rem; line-height: 1.5; border-bottom: 1px solid #e0ddd5;">
+                    <% if (extraNotes) { %>
+                      <div style="margin-bottom: 4px;"><strong>Notes:</strong> <%= extraNotes %></div>
+                    <% } %>
+                    <% if (responses.length > 0) { %>
+                      <strong style="color: var(--green-dark);">Responses:</strong>
+                      <% responses.forEach(r => { %>
+                        <div style="margin-top: 2px;"><strong><%= r.label %>:</strong> <%= r.value %></div>
+                      <% }) %>
+                    <% } %>
+                  </td>
+                </tr>
+              <% } %>
             <% }) %>
           </tbody>
         </table>

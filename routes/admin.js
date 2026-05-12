@@ -625,17 +625,39 @@ router.get('/roster', requireAuth, asyncHandler(async (req, res) => {
     const childrenForDay = [];
     for (const reg of registrations) {
       if ((reg.selectedDates || []).includes(day)) {
-        for (const child of (reg.children || [])) {
-          const dob = new Date(child.dob + 'T00:00:00');
-          const dayDate = new Date(day + 'T00:00:00');
-          let age = dayDate.getFullYear() - dob.getFullYear();
-          const md = dayDate.getMonth() - dob.getMonth();
-          if (md < 0 || (md === 0 && dayDate.getDate() < dob.getDate())) age--;
-          childrenForDay.push({ name: child.name, age, parentName: reg.parentName, parentPhone: reg.parentPhone, allergies: child.allergies || '', notes: reg.notes || '', customResponses: (reg.customResponses || []).filter(r => r && r.value) });
+        // A registration may have no participant rows (e.g. CIT where applicant info
+        // lives in custom responses). Fall back to one synthetic row per registration
+        // so the participant appears on the roster regardless.
+        const rows = (reg.children && reg.children.length > 0) ? reg.children : [{ name: null, dob: null, allergies: null }];
+        for (const child of rows) {
+          let age = null;
+          if (child.dob) {
+            const dob = new Date(child.dob + 'T00:00:00');
+            if (!isNaN(dob)) {
+              const dayDate = new Date(day + 'T00:00:00');
+              age = dayDate.getFullYear() - dob.getFullYear();
+              const md = dayDate.getMonth() - dob.getMonth();
+              if (md < 0 || (md === 0 && dayDate.getDate() < dob.getDate())) age--;
+            }
+          }
+          // Display name falls back to the contact name when the participant has none.
+          const displayName = child.name || reg.parentName || '(no name)';
+          childrenForDay.push({
+            name: displayName,
+            age,
+            parentName: reg.parentName || '',
+            parentPhone: reg.parentPhone || '',
+            allergies: child.allergies || '',
+            notes: reg.notes || '',
+            customResponses: (reg.customResponses || []).filter(r => r && r.value),
+          });
         }
       }
     }
-    if (childrenForDay.length > 0) { childrenForDay.sort((a, b) => a.name.localeCompare(b.name)); rosterByDay.push({ date: day, children: childrenForDay }); }
+    if (childrenForDay.length > 0) {
+      childrenForDay.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+      rosterByDay.push({ date: day, children: childrenForDay });
+    }
   }
   res.render('admin/roster', { program, weekStart, rosterByDay });
 }));
