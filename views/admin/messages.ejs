@@ -132,30 +132,17 @@
         </button>
       </form>
       <script src="https://cdn.jsdelivr.net/npm/quill@2/dist/quill.js"></script>
+      <script src="/js/admin-quill.js"></script>
       <script>
       const programWeeks = <%- JSON.stringify(programWeeks) %>;
 
-      // Quill editor for bulk send
-      const bulkQuill = new Quill('#bulkEditor', {
-        theme: 'snow',
-        modules: {
-          toolbar: [
-            [{ 'header': [2, 3, false] }],
-            ['bold', 'italic', 'underline'],
-            [{ 'color': [] }],
-            [{ 'list': 'ordered' }, { 'list': 'bullet' }],
-            ['link'],
-            ['clean']
-          ]
-        },
-        placeholder: 'Type your message...'
+      const bulkQuill = createAdminQuill('#bulkEditor', {
+        placeholder: 'Type your message...',
       });
 
       // Merge manual + loaded recipients and set body on submit
       document.getElementById('bulkSendForm').addEventListener('submit', function() {
-        // Set body from Quill
-        const html = bulkQuill.root.innerHTML;
-        document.getElementById('bulkBodyHidden').value = (html === '<p><br></p>') ? '' : html;
+        document.getElementById('bulkBodyHidden').value = bulkQuill.getCleanHtml();
 
         // Merge manual recipients
         const loaded = (document.getElementById('recipientHidden').value || '').split(',').filter(Boolean);

@@ -64,6 +64,7 @@
       <button type="submit" class="btn btn-green btn-sm" style="margin-top: 12px;">Save Content</button>
     </form>
     <script src="https://cdn.jsdelivr.net/npm/quill@2/dist/quill.js"></script>
+    <script src="/js/admin-quill.js"></script>
     <script>
     let existingContent = <%- JSON.stringify(page.body || '') %>;
     if (existingContent && !existingContent.includes('<')) {
@@ -71,50 +72,14 @@
     }
     document.getElementById('editor').innerHTML = existingContent;
 
-    const quill = new Quill('#editor', {
-      theme: 'snow',
-      modules: {
-        toolbar: {
-          container: [
-            [{ 'header': [2, 3, false] }],
-            ['bold', 'italic', 'underline'],
-            [{ 'color': [] }, { 'background': [] }],
-            [{ 'align': [] }, { 'align': 'center' }, { 'align': 'right' }],
-            [{ 'list': 'ordered' }, { 'list': 'bullet' }],
-            ['link', 'image'],
-            ['clean'],
-            ['html-toggle']
-          ]
-        }
-      },
-      placeholder: 'Page content...'
-    });
-
-    // HTML toggle
-    const htmlBtn = document.querySelector('.ql-html-toggle');
-    if (htmlBtn) { htmlBtn.innerHTML = '&lt;/&gt;'; htmlBtn.title = 'Edit HTML source'; }
-    let htmlMode = false, htmlTextarea = null;
-    if (htmlBtn) htmlBtn.addEventListener('click', function() {
-      if (!htmlMode) {
-        htmlTextarea = document.createElement('textarea');
-        htmlTextarea.style.cssText = 'width:100%; min-height:300px; padding:12px; font-family:monospace; font-size:0.85rem; border:1px solid #ccc;';
-        htmlTextarea.value = quill.root.innerHTML;
-        quill.container.style.display = 'none';
-        quill.container.parentNode.insertBefore(htmlTextarea, quill.container.nextSibling);
-        htmlBtn.style.background = '#e8f5e9';
-      } else {
-        quill.root.innerHTML = htmlTextarea.value;
-        htmlTextarea.remove(); htmlTextarea = null;
-        quill.container.style.display = '';
-        htmlBtn.style.background = '';
-      }
-      htmlMode = !htmlMode;
+    const quill = createAdminQuill('#editor', {
+      placeholder: 'Page content...',
+      allowImage: true,
+      allowHtmlToggle: true,
     });
 
     document.getElementById('bodyForm').addEventListener('submit', function() {
-      if (htmlMode && htmlTextarea) quill.root.innerHTML = htmlTextarea.value;
-      const html = quill.root.innerHTML;
-      document.getElementById('bodyHidden').value = (html === '<p><br></p>') ? '' : html;
+      document.getElementById('bodyHidden').value = quill.getCleanHtml();
     });
     </script>
 

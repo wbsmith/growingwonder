@@ -246,3 +246,51 @@ a.stat-card:hover {
   .admin-sidebar { width: 100%; }
   .admin-main { padding: 20px; }
 }
+
+/* ---------- Quill admin editor pickers ---------- */
+/* Show each font option in its own face inside the dropdown. */
+.ql-snow .ql-picker.ql-font { width: 130px; }
+.ql-snow .ql-picker.ql-font .ql-picker-label::before,
+.ql-snow .ql-picker.ql-font .ql-picker-item::before { content: 'Sans Serif'; }
+.ql-snow .ql-picker.ql-font .ql-picker-label[data-value="Lato"]::before,
+.ql-snow .ql-picker.ql-font .ql-picker-item[data-value="Lato"]::before { content: 'Lato'; font-family: 'Lato', sans-serif; }
+.ql-snow .ql-picker.ql-font .ql-picker-label[data-value="Helvetica"]::before,
+.ql-snow .ql-picker.ql-font .ql-picker-item[data-value="Helvetica"]::before { content: 'Helvetica'; font-family: Helvetica, Arial, sans-serif; }
+.ql-snow .ql-picker.ql-font .ql-picker-label[data-value="Georgia"]::before,
+.ql-snow .ql-picker.ql-font .ql-picker-item[data-value="Georgia"]::before { content: 'Georgia'; font-family: Georgia, serif; }
+.ql-snow .ql-picker.ql-font .ql-picker-label[data-value="Playfair Display"]::before,
+.ql-snow .ql-picker.ql-font .ql-picker-item[data-value="Playfair Display"]::before { content: 'Playfair'; font-family: 'Playfair Display', serif; }
+
+/* Size dropdown labels show the px value. */
+.ql-snow .ql-picker.ql-size { width: 78px; }
+.ql-snow .ql-picker.ql-size .ql-picker-label::before,
+.ql-snow .ql-picker.ql-size .ql-picker-item::before { content: 'Size'; }
+.ql-snow .ql-picker.ql-size .ql-picker-label[data-value="12px"]::before,
+.ql-snow .ql-picker.ql-size .ql-picker-item[data-value="12px"]::before { content: '12'; }
+.ql-snow .ql-picker.ql-size .ql-picker-label[data-value="14px"]::before,
+.ql-snow .ql-picker.ql-size .ql-picker-item[data-value="14px"]::before { content: '14'; }
+.ql-snow .ql-picker.ql-size .ql-picker-label[data-value="16px"]::before,
+.ql-snow .ql-picker.ql-size .ql-picker-item[data-value="16px"]::before { content: '16'; }
+.ql-snow .ql-picker.ql-size .ql-picker-label[data-value="18px"]::before,
+.ql-snow .ql-picker.ql-size .ql-picker-item[data-value="18px"]::before { content: '18'; }
+.ql-snow .ql-picker.ql-size .ql-picker-label[data-value="20px"]::before,
+.ql-snow .ql-picker.ql-size .ql-picker-item[data-value="20px"]::before { content: '20'; }
+.ql-snow .ql-picker.ql-size .ql-picker-label[data-value="24px"]::before,
+.ql-snow .ql-picker.ql-size .ql-picker-item[data-value="24px"]::before { content: '24'; }
+.ql-snow .ql-picker.ql-size .ql-picker-label[data-value="32px"]::before,
+.ql-snow .ql-picker.ql-size .ql-picker-item[data-value="32px"]::before { content: '32'; }
+
+/* Background "none" swatch — clearer styling for the "remove background" cell. */
+.ql-snow .ql-picker.ql-background .ql-picker-options [data-value="false"],
+.ql-snow .ql-picker.ql-background .ql-picker-options .ql-primary {
+  position: relative;
+  background: #fff !important;
+  border: 1px solid #999;
+}
+.ql-snow .ql-picker.ql-background .ql-picker-options [data-value="false"]::after {
+  content: '⊘';
+  position: absolute; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 14px; color: #999;
+  pointer-events: none;
+}

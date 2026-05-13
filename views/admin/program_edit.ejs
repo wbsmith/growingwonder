@@ -275,71 +275,22 @@
       <button type="submit" class="btn btn-green btn-sm" style="margin-top: 12px;">Save Description</button>
     </form>
     <script src="https://cdn.jsdelivr.net/npm/quill@2/dist/quill.js"></script>
+    <script src="/js/admin-quill.js"></script>
     <script>
     // Pre-process: if existing content is plain text (no HTML tags), convert newlines to paragraphs
     let existingContent = <%- JSON.stringify(program.longDescription || '') %>;
     if (existingContent && !existingContent.includes('<')) {
       existingContent = existingContent.split(/\n+/).filter(Boolean).map(p => '<p>' + p + '</p>').join('');
     }
-
-    // Set content in the editor div BEFORE Quill initializes so it parses it properly
     document.getElementById('editor').innerHTML = existingContent;
 
-    const quill = new Quill('#editor', {
-      theme: 'snow',
-      modules: {
-        toolbar: {
-          container: [
-            [{ 'header': [2, 3, false] }],
-            ['bold', 'italic', 'underline'],
-            [{ 'color': [] }, { 'background': [] }],
-            [{ 'align': [] }, { 'align': 'center' }, { 'align': 'right' }],
-            [{ 'list': 'ordered' }, { 'list': 'bullet' }],
-            ['link'],
-            ['clean'],
-            ['html-toggle']
-          ]
-        }
-      },
-      placeholder: 'Detailed program description...'
-    });
-
-    // HTML source toggle
-    const htmlBtn = document.querySelector('.ql-html-toggle');
-    if (htmlBtn) {
-      htmlBtn.innerHTML = '&lt;/&gt;';
-      htmlBtn.title = 'Edit HTML source';
-    }
-    let htmlMode = false;
-    let htmlTextarea = null;
-
-    if (htmlBtn) htmlBtn.addEventListener('click', function() {
-      if (!htmlMode) {
-        // Switch to HTML source
-        htmlTextarea = document.createElement('textarea');
-        htmlTextarea.style.cssText = 'width:100%; min-height:200px; padding:12px; font-family:monospace; font-size:0.85rem; border:1px solid #ccc; border-radius:0 0 var(--radius) var(--radius);';
-        htmlTextarea.value = quill.root.innerHTML;
-        quill.container.style.display = 'none';
-        quill.container.parentNode.insertBefore(htmlTextarea, quill.container.nextSibling);
-        htmlBtn.style.background = '#e8f5e9';
-      } else {
-        // Switch back to rich editor
-        quill.root.innerHTML = htmlTextarea.value;
-        htmlTextarea.remove();
-        htmlTextarea = null;
-        quill.container.style.display = '';
-        htmlBtn.style.background = '';
-      }
-      htmlMode = !htmlMode;
+    const quill = createAdminQuill('#editor', {
+      placeholder: 'Detailed program description...',
+      allowHtmlToggle: true,
     });
 
     document.getElementById('descForm').addEventListener('submit', function() {
-      // If in HTML mode, grab from textarea
-      if (htmlMode && htmlTextarea) {
-        quill.root.innerHTML = htmlTextarea.value;
-      }
-      const html = quill.root.innerHTML;
-      document.getElementById('descHidden').value = (html === '<p><br></p>') ? '' : html;
+      document.getElementById('descHidden').value = quill.getCleanHtml();
     });
 
     // Registration description editor
@@ -349,25 +300,12 @@
     }
     document.getElementById('regDescEditor').innerHTML = regDescContent;
 
-    const regDescQuill = new Quill('#regDescEditor', {
-      theme: 'snow',
-      modules: {
-        toolbar: [
-          [{ 'header': [2, 3, false] }],
-          ['bold', 'italic', 'underline'],
-          [{ 'color': [] }],
-          [{ 'align': [] }, { 'align': 'center' }, { 'align': 'right' }],
-          [{ 'list': 'ordered' }, { 'list': 'bullet' }],
-          ['link'],
-          ['clean']
-        ]
-      },
-      placeholder: 'Short description shown during registration...'
+    const regDescQuill = createAdminQuill('#regDescEditor', {
+      placeholder: 'Short description shown during registration...',
     });
 
     document.getElementById('regDescForm').addEventListener('submit', function() {
-      const html = regDescQuill.root.innerHTML;
-      document.getElementById('regDescHidden').value = (html === '<p><br></p>') ? '' : html;
+      document.getElementById('regDescHidden').value = regDescQuill.getCleanHtml();
     });
     </script>
 
