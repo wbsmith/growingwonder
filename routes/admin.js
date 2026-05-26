@@ -734,13 +734,16 @@ router.get('/messages', requireAuth, asyncHandler(async (req, res) => {
   res.render('admin/messages', { tab, threads, pendingEmails, inquiries, newInquiries, programs, programWeeks });
 }));
 
-// Soft delete (emails and inquiries)
+// Soft delete (emails and inquiries — accepts comma-separated IDs)
 router.post('/messages/delete', requireAuth, asyncHandler(async (req, res) => {
   const { type, item_id } = req.body;
   const adminUser = process.env.ADMIN_USER || 'admin';
-  await db.softDeleteMessage(type, item_id, adminUser);
+  const ids = item_id.split(',').map(s => s.trim()).filter(Boolean);
+  for (const id of ids) {
+    await db.softDeleteMessage(type, id, adminUser);
+  }
   const tab = type === 'email' ? 'confirmations' : 'inquiries';
-  req.session.flash = { type: 'success', msg: 'Deleted.' };
+  req.session.flash = { type: 'success', msg: ids.length > 1 ? `${ids.length} messages deleted.` : 'Deleted.' };
   res.redirect(303, '/admin/messages?tab=' + tab);
 }));
 

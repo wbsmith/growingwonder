@@ -52,6 +52,12 @@
                   <% } else { %>
                     <a href="/admin/messages/emails/<%= t.firstId %>/edit" class="btn btn-outline btn-sm">Retry</a>
                   <% } %>
+                  <form method="POST" action="/admin/messages/delete" style="display:inline; margin-left: 4px;">
+                    <input type="hidden" name="type" value="email">
+                    <input type="hidden" name="item_id" value="<%= t.messages.map(m => m.id).join(',') %>">
+                    <button type="submit" style="background:none;border:none;color:var(--red);cursor:pointer;font-size:1rem;padding:2px 4px;vertical-align:middle;" title="Delete"
+                      onclick="return confirm('<%= t.messageCount > 1 ? 'Delete all ' + t.messageCount + ' messages in this thread?' : 'Delete this message?' %>')">&#x1F5D1;</button>
+                  </form>
                 </td>
               </tr>
             <% }) %>
