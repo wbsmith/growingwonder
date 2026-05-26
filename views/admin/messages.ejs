@@ -67,6 +67,7 @@
           <div class="form-group" style="margin-bottom: 0;">
             <label>Scope</label>
             <select id="scope" onchange="updateScopeUI()">
+              <option value="manual">Manual only</option>
               <option value="all">All enrolled parents</option>
               <option value="program">All in a program</option>
               <option value="week">Enrolled in a week</option>
@@ -90,7 +91,7 @@
             <label>Date</label>
             <select id="daySelect"></select>
           </div>
-          <button type="button" class="btn btn-outline btn-sm" onclick="fetchRecipients()">Load Recipients</button>
+          <button type="button" class="btn btn-outline btn-sm" id="loadRecipientsBtn" onclick="fetchRecipients()">Load Recipients</button>
         </div>
         <div id="recipientInfo" style="margin-top: 16px; display: none;">
           <strong id="recipientCount">0</strong> recipient(s):
@@ -105,7 +106,7 @@
 
         <!-- Manual recipients -->
         <div class="form-group">
-          <label>Additional Recipients <span style="font-weight:normal; color:var(--text-light);">(comma-separated emails)</span></label>
+          <label id="manualRecipientsLabel">Recipients <span style="font-weight:normal; color:var(--text-light);">(comma-separated emails)</span></label>
           <input type="text" id="manualRecipients" placeholder="parent@example.com, another@example.com"
             style="padding: 10px 14px; border: 1px solid #ccc; border-radius: var(--radius); width: 100%;">
         </div>
@@ -164,11 +165,17 @@
       });
       function updateScopeUI() {
         const scope = document.getElementById('scope').value;
-        document.getElementById('programGroup').style.display = (scope === 'all') ? 'none' : '';
+        const isManual = scope === 'manual';
+        document.getElementById('programGroup').style.display = (scope === 'all' || isManual) ? 'none' : '';
         document.getElementById('weekGroup').style.display = (scope === 'week') ? '' : 'none';
         document.getElementById('dayGroup').style.display = (scope === 'day') ? '' : 'none';
+        document.getElementById('loadRecipientsBtn').style.display = isManual ? 'none' : '';
         document.getElementById('recipientInfo').style.display = 'none';
-        document.getElementById('sendBtn').disabled = true;
+        document.getElementById('recipientHidden').value = '';
+        document.getElementById('sendBtn').disabled = !isManual;
+        document.getElementById('manualRecipientsLabel').innerHTML = isManual
+          ? 'Recipients <span style="font-weight:normal; color:var(--text-light);">(comma-separated emails)</span>'
+          : 'Additional Recipients <span style="font-weight:normal; color:var(--text-light);">(comma-separated emails)</span>';
       }
       function updateDateOptions() {
         const pid = document.getElementById('bulkProgramSelect').value;
