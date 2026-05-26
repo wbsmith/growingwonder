@@ -1,0 +1,119 @@
+<%- include('../layout_head', { title: 'Message Thread' }) %>
+<link rel="stylesheet" href="/css/admin.css">
+
+<div class="admin-layout">
+  <%- include('_sidebar', { active: 'messages', tab: 'confirmations' }) %>
+  <main class="admin-main">
+    <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 16px;">
+      <a href="/admin/messages?tab=confirmations" class="btn btn-outline btn-sm">&larr; Back</a>
+      <h1 style="margin: 0;">Conversation with <%= latest.toAddr %></h1>
+    </div>
+
+    <div class="email-meta">
+      <strong>To:</strong> <%= latest.toAddr %><br>
+      <% if (latest.childName) { %><strong>Child:</strong> <%= latest.childName %><br><% } %>
+      <% if (latest.programName) { %><strong>Program:</strong> <%= latest.programName %><br><% } %>
+      <strong>Messages:</strong> <%= emails.length %>
+    </div>
+
+    <% if (registration) { %>
+      <%
+        const responses = (registration.customResponses || []).filter(r => r && r.value);
+        const participants = (registration.children || []).filter(c => c && (c.name || c.dob || c.healthcareProvider || c.allergies));
+        const dates = (registration.selectedDates || []).slice().sort();
+        const formattedDates = dates.map(d => {
+          const dt = new Date(d + 'T00:00:00');
+          return dt.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
+        });
+        const hasAny = registration.parentName || registration.parentEmail || registration.parentPhone || participants.length > 0 || dates.length > 0 || registration.notes || responses.length > 0;
+      %>
+      <% if (hasAny) { %>
+        <details style="margin-bottom: 20px;">
+          <summary style="cursor: pointer; font-weight: 600; color: var(--green-dark); font-size: 0.9rem; padding: 8px 0;">Registration Details</summary>
+          <div style="padding: 14px 18px; background: var(--sand); border-radius: var(--radius); font-size: 0.9rem; line-height: 1.55; margin-top: 4px;">
+            <% if (registration.parentName) { %><div><strong>Contact name:</strong> <%= registration.parentName %></div><% } %>
+            <% if (registration.parentEmail) { %><div><strong>Contact email:</strong> <%= registration.parentEmail %></div><% } %>
+            <% if (registration.parentPhone) { %><div><strong>Contact phone:</strong> <%= registration.parentPhone %></div><% } %>
+            <% participants.forEach((c, i) => { %>
+              <div style="margin-top: 6px;">
+                <strong>Participant <%= participants.length > 1 ? (i + 1) : '' %>:</strong>
+                <% const bits = []; if (c.name) bits.push(c.name); if (c.dob) bits.push('DOB ' + c.dob); if (c.healthcareProvider) bits.push('Healthcare: ' + c.healthcareProvider); if (c.allergies) bits.push('Allergies: ' + c.allergies); %>
+                <%= bits.join(' · ') %>
+              </div>
+            <% }) %>
+            <% if (formattedDates.length > 0) { %>
+              <div style="margin-top: 6px;"><strong>Dates:</strong> <%= formattedDates.join('; ') %></div>
+            <% } %>
+            <% if (registration.notes) { %>
+              <div style="margin-top: 6px;"><strong>Notes:</strong> <%= registration.notes %></div>
+            <% } %>
+            <% if (responses.length > 0) { %>
+              <div style="margin-top: 10px; padding-top: 8px; border-top: 1px solid #e0ddd5;">
+                <strong style="color: var(--green-dark);">Responses:</strong>
+                <% responses.forEach(r => { %>
+                  <div style="margin-top: 2px;"><strong><%= r.label %>:</strong> <%= r.value %></div>
+                <% }) %>
+              </div>
+            <% } %>
+          </div>
+        </details>
+      <% } %>
+    <% } %>
+
+    <!-- Message thread -->
+    <div style="display: flex; flex-direction: column; gap: 16px; margin-bottom: 24px;">
+      <% emails.forEach((e, idx) => { %>
+        <div style="background: var(--white); border: 1px solid #ddd; border-radius: var(--radius); overflow: hidden;">
+          <div style="display: flex; justify-content: space-between; align-items: center; padding: 10px 16px; background: <%= e.status === 'draft' ? '#fff8e1' : e.status === 'failed' ? '#fce4ec' : '#f5f5f5' %>; border-bottom: 1px solid #eee; font-size: 0.8rem;">
+            <div>
+              <span class="badge badge-<%= e.status %>"><%= e.status %></span>
+              <strong style="margin-left: 8px;"><%= e.subject %></strong>
+            </div>
+            <div style="color: var(--text-light);">
+              <% if (e.sentAt) { %>Sent <%= e.sentAt %><% } else { %>Created <%= e.createdAt %><% } %>
+            </div>
+          </div>
+          <div style="padding: 16px;">
+            <% if (e.status === 'draft') { %>
+              <div style="font-size: 0.85rem; color: var(--text-light); margin-bottom: 8px;">Draft — <a href="/admin/messages/emails/<%= e.id %>/edit">Edit & Send</a></div>
+            <% } %>
+            <div style="white-space: pre-wrap; font-size: 0.9rem;"><%- e.body %></div>
+            <% if (e.attachments && e.attachments.length > 0) { %>
+              <div style="margin-top: 10px; padding-top: 8px; border-top: 1px solid #eee; font-size: 0.8rem;">
+                <strong>Attachments:</strong>
+                <% e.attachments.forEach(att => { %>
+                  <a href="<%= att.url %>" target="_blank" style="margin-left: 8px;"><%= att.filename %></a>
+                <% }) %>
+              </div>
+            <% } %>
+          </div>
+        </div>
+      <% }) %>
+    </div>
+
+    <!-- Follow-up form (only if no pending draft) -->
+    <% const hasDraft = emails.some(e => e.status === 'draft'); %>
+    <% if (!hasDraft) { %>
+      <div style="background: var(--white); border: 1px solid #ddd; border-radius: var(--radius); padding: 20px;">
+        <h3 style="color: var(--green-dark); margin-bottom: 12px; font-size: 1rem;">Send Follow-up</h3>
+        <form method="POST" action="/admin/messages/emails/<%= latest.id %>/followup">
+          <div class="form-group">
+            <label>Subject</label>
+            <input type="text" name="subject" value="Re: <%= emails[0].subject %>" style="width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: var(--radius);">
+          </div>
+          <div class="form-group">
+            <label>Body</label>
+            <textarea name="body" rows="6" placeholder="Type your follow-up message..."
+              style="width: 100%; padding: 12px; border: 1px solid #ccc; border-radius: var(--radius); font-family: inherit; font-size: 0.95rem;"></textarea>
+          </div>
+          <button type="submit" class="btn btn-green"
+            onclick="return confirm('Send follow-up to <%= latest.toAddr %>?')">
+            Send Follow-up
+          </button>
+        </form>
+      </div>
+    <% } %>
+  </main>
+</div>
+
+<%- include('../layout_foot') %>

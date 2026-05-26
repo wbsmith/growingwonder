@@ -865,6 +865,15 @@ async function countNewInquiries() {
   return Count || 0;
 }
 
+async function getEmailsByRegistration(registrationId) {
+  const { Items } = await client.send(new ScanCommand({
+    TableName: T.emails,
+    FilterExpression: 'registrationId = :rid AND attribute_not_exists(deletedAt)',
+    ExpressionAttributeValues: { ':rid': registrationId },
+  }));
+  return (Items || []).sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+}
+
 // ---- Bulk email helpers ----
 
 async function getEmailsByDate(programId, date) {
@@ -929,7 +938,7 @@ module.exports = {
   getDatesByProgram, addDates, updateDateCapacity, removeDate,
   createRegistration, getRegistration, getEnrollments, getRegistrationsByProgram,
   countRegistrationsByProgram, deleteRegistration, mergeRegistrations, autoMergeRegistrations, removeDateFromRegistration, updatePayment,
-  getAllEmails, getEmail, updateEmailDraft, addEmailAttachment, removeEmailAttachment,
+  getAllEmails, getEmail, getEmailsByRegistration, updateEmailDraft, addEmailAttachment, removeEmailAttachment,
   markEmailSent, markEmailFailed,
   countPendingEmails, getDashboardStats,
   createInquiry, getAllInquiries, getInquiry, replyToInquiry, countNewInquiries, softDeleteMessage,

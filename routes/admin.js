@@ -672,6 +672,47 @@ router.get('/messages', requireAuth, asyncHandler(async (req, res) => {
   const inquiries = await db.getAllInquiries();
   const newInquiries = await db.countNewInquiries();
 
+  // Group emails into threads by registrationId (or toAddr for orphans)
+  const threadMap = new Map();
+  for (const e of emails) {
+    const key = e.registrationId || ('addr:' + e.toAddr);
+    if (!threadMap.has(key)) {
+      threadMap.set(key, {
+        key,
+        registrationId: e.registrationId,
+        toAddr: e.toAddr,
+        childName: e.childName,
+        programName: e.programName,
+        parentName: e.parentName,
+        messages: [],
+      });
+    }
+    threadMap.get(key).messages.push(e);
+  }
+  const threads = Array.from(threadMap.values()).map(t => {
+    const sorted = t.messages.sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+    const latest = sorted[sorted.length - 1];
+    const hasDraft = sorted.some(m => m.status === 'draft');
+    const hasFailed = sorted.some(m => m.status === 'failed');
+    return {
+      ...t,
+      subject: sorted[0].subject,
+      messageCount: sorted.length,
+      latestDate: latest.createdAt,
+      latestStatus: hasDraft ? 'draft' : hasFailed ? 'failed' : latest.status,
+      latestId: latest.id,
+      firstId: sorted[0].id,
+    };
+  });
+  // Sort: drafts/failed first, then by most recent date descending
+  const statusOrder = { draft: 0, failed: 1, sent: 2 };
+  threads.sort((a, b) => {
+    const sa = statusOrder[a.latestStatus] ?? 3;
+    const sb = statusOrder[b.latestStatus] ?? 3;
+    if (sa !== sb) return sa - sb;
+    return b.latestDate.localeCompare(a.latestDate);
+  });
+
   // For bulk tab: build week data
   const programWeeks = {};
   if (tab === 'bulk') {
@@ -690,7 +731,7 @@ router.get('/messages', requireAuth, asyncHandler(async (req, res) => {
     }
   }
 
-  res.render('admin/messages', { tab, emails, pendingEmails, inquiries, newInquiries, programs, programWeeks });
+  res.render('admin/messages', { tab, threads, pendingEmails, inquiries, newInquiries, programs, programWeeks });
 }));
 
 // Soft delete (emails and inquiries)
@@ -701,6 +742,16 @@ router.post('/messages/delete', requireAuth, asyncHandler(async (req, res) => {
   const tab = type === 'email' ? 'confirmations' : 'inquiries';
   req.session.flash = { type: 'success', msg: 'Deleted.' };
   res.redirect(303, '/admin/messages?tab=' + tab);
+}));
+
+// Thread view — shows all emails for a registration as a conversation
+router.get('/messages/thread/:registrationId', requireAuth, asyncHandler(async (req, res) => {
+  const registrationId = req.params.registrationId;
+  const emails = await db.getEmailsByRegistration(registrationId);
+  if (emails.length === 0) return res.status(404).send('No messages found for this thread.');
+  const registration = await db.getRegistration(registrationId);
+  const latest = emails[emails.length - 1];
+  res.render('admin/thread_view', { emails, registration, registrationId, latest });
 }));
 
 // Confirmation email edit/send
@@ -778,7 +829,11 @@ router.post('/messages/emails/:id/followup', requireAuth, asyncHandler(async (re
     console.error('Follow-up error:', err);
     req.session.flash = { type: 'error', msg: 'Send failed: ' + err.message };
   }
-  res.redirect(303, '/admin/messages?tab=confirmations');
+  if (original.registrationId) {
+    res.redirect(303, '/admin/messages/thread/' + original.registrationId);
+  } else {
+    res.redirect(303, '/admin/messages?tab=confirmations');
+  }
 }));
 
 router.post('/messages/emails/:id/send', requireAuth, asyncHandler(async (req, res) => {

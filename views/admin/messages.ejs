@@ -7,8 +7,8 @@
     <h1><%= tab === 'bulk' ? 'Bulk Send' : tab === 'inquiries' ? 'Inquiries' : 'Confirmations' %></h1>
 
     <% if (tab === 'confirmations') { %>
-      <!-- CONFIRMATIONS TAB -->
-      <% if (emails.length === 0) { %>
+      <!-- CONFIRMATIONS TAB (threaded) -->
+      <% if (threads.length === 0) { %>
         <p style="color: var(--text-light);">No emails in queue.</p>
       <% } else { %>
         <table class="data-table">
@@ -19,33 +19,39 @@
               <th>Child</th>
               <th>Program</th>
               <th>Subject</th>
-              <th>Created</th>
+              <th>Messages</th>
+              <th>Latest</th>
               <th></th>
             </tr>
           </thead>
           <tbody>
-            <% emails.forEach(e => { %>
+            <% threads.forEach(t => { %>
               <tr>
-                <td><span class="badge badge-<%= e.status %>"><%= e.status %></span></td>
-                <td><%= e.toAddr %></td>
-                <td><%= e.childName %></td>
-                <td><%= e.programName %></td>
-                <td><%= e.subject %></td>
-                <td style="font-size: 0.8rem;"><%= e.createdAt %></td>
-                <td>
-                  <% if (e.status === 'draft') { %>
-                    <a href="/admin/messages/emails/<%= e.id %>/edit" class="btn btn-outline btn-sm">Edit & Send</a>
-                  <% } else if (e.status === 'sent') { %>
-                    <a href="/admin/messages/emails/<%= e.id %>/edit" class="btn btn-outline btn-sm">View / Follow Up</a>
+                <td><span class="badge badge-<%= t.latestStatus %>"><%= t.latestStatus %></span></td>
+                <td><%= t.toAddr %></td>
+                <td><%= t.childName %></td>
+                <td><%= t.programName %></td>
+                <td><%= t.subject %></td>
+                <td style="text-align: center;">
+                  <% if (t.messageCount > 1) { %>
+                    <span style="background: var(--green-dark); color: white; border-radius: 10px; padding: 1px 7px; font-size: 0.75rem; font-weight: 600;"><%= t.messageCount %></span>
                   <% } else { %>
-                    <a href="/admin/messages/emails/<%= e.id %>/edit" class="btn btn-outline btn-sm">Retry</a>
+                    1
                   <% } %>
-                  <form method="POST" action="/admin/messages/delete" style="display:inline; margin-left: 4px;">
-                    <input type="hidden" name="type" value="email">
-                    <input type="hidden" name="item_id" value="<%= e.id %>">
-                    <button type="submit" style="background:none;border:none;color:var(--red);cursor:pointer;font-size:0.9rem;padding:2px 4px;" title="Delete"
-                      onclick="return confirm('Delete this email record?')">&times;</button>
-                  </form>
+                </td>
+                <td style="font-size: 0.8rem;"><%= t.latestDate %></td>
+                <td>
+                  <% if (t.registrationId) { %>
+                    <a href="/admin/messages/thread/<%= t.registrationId %>" class="btn btn-outline btn-sm">
+                      <%= t.latestStatus === 'draft' ? 'Open' : t.messageCount > 1 ? 'View Thread' : 'View' %>
+                    </a>
+                  <% } else if (t.latestStatus === 'draft') { %>
+                    <a href="/admin/messages/emails/<%= t.firstId %>/edit" class="btn btn-outline btn-sm">Edit & Send</a>
+                  <% } else if (t.latestStatus === 'sent') { %>
+                    <a href="/admin/messages/emails/<%= t.latestId %>/edit" class="btn btn-outline btn-sm">View</a>
+                  <% } else { %>
+                    <a href="/admin/messages/emails/<%= t.firstId %>/edit" class="btn btn-outline btn-sm">Retry</a>
+                  <% } %>
                 </td>
               </tr>
             <% }) %>
