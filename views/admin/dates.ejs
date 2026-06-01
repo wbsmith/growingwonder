@@ -59,7 +59,7 @@
               </td>
               <td><%= d.enrolled || 0 %></td>
               <td>
-                <% if (!d.enrolled) { %>
+                <% if ((d.enrolled || 0) <= 0) { %>
                   <form method="POST" action="/admin/dates/remove" style="display:inline;">
                     <input type="hidden" name="date_to_remove" value="<%= d.date %>">
                     <input type="hidden" name="program_id" value="<%= selectedProgramId %>">

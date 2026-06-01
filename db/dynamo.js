@@ -423,7 +423,7 @@ async function deleteRegistration(id) {
 
   const item = reg.Item;
 
-  // Decrement enrolled counts on each date
+  // Decrement enrolled counts on each date — guarded so the counter never goes below zero.
   if (item.selectedDates && item.selectedDates.length > 0 && item.programId && item.programId !== 'imported') {
     for (const date of item.selectedDates) {
       try {
@@ -431,9 +431,10 @@ async function deleteRegistration(id) {
           TableName: T.dates,
           Key: { programId: item.programId, date },
           UpdateExpression: 'ADD enrolled :neg',
-          ExpressionAttributeValues: { ':neg': -1 },
+          ConditionExpression: 'attribute_exists(enrolled) AND enrolled > :zero',
+          ExpressionAttributeValues: { ':neg': -1, ':zero': 0 },
         }));
-      } catch (e) { /* date may not exist anymore */ }
+      } catch (e) { /* date missing or already at zero — skip */ }
     }
   }
 
@@ -660,7 +661,9 @@ async function removeDateFromRegistration(id, date) {
   }));
   if (!Item) return;
 
-  const dates = (Item.selectedDates || []).filter(d => d !== date);
+  const originalDates = Item.selectedDates || [];
+  const wasPresent = originalDates.includes(date);
+  const dates = originalDates.filter(d => d !== date);
   await client.send(new UpdateCommand({
     TableName: T.registrations,
     Key: { id },
@@ -668,16 +671,18 @@ async function removeDateFromRegistration(id, date) {
     ExpressionAttributeValues: { ':dates': dates },
   }));
 
-  // Decrement enrolled count on the date
-  if (Item.programId && Item.programId !== 'imported') {
+  // Decrement only if the date was actually counted for this registration,
+  // and guard against driving the counter negative.
+  if (wasPresent && Item.programId && Item.programId !== 'imported') {
     try {
       await client.send(new UpdateCommand({
         TableName: T.dates,
         Key: { programId: Item.programId, date },
         UpdateExpression: 'ADD enrolled :neg',
-        ExpressionAttributeValues: { ':neg': -1 },
+        ConditionExpression: 'attribute_exists(enrolled) AND enrolled > :zero',
+        ExpressionAttributeValues: { ':neg': -1, ':zero': 0 },
       }));
-    } catch (e) { /* date may not exist */ }
+    } catch (e) { /* date missing or already at zero — skip */ }
   }
 }
 
