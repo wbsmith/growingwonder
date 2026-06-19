@@ -6,11 +6,12 @@
   <main class="admin-main">
     <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 16px;">
       <a href="/admin/messages?tab=confirmations" class="btn btn-outline btn-sm">&larr; Back</a>
-      <h1 style="margin: 0;">Conversation with <%= latest.toAddr %></h1>
+      <h1 style="margin: 0;">Conversation with <%= replyTo || latest.toAddr %></h1>
     </div>
 
     <div class="email-meta">
-      <strong>To:</strong> <%= latest.toAddr %><br>
+      <strong>With:</strong> <%= replyTo || latest.toAddr %><br>
+      <% if (registration && registration.parentName) { %><strong>Contact:</strong> <%= registration.parentName %><br><% } %>
       <% if (latest.childName) { %><strong>Child:</strong> <%= latest.childName %><br><% } %>
       <% if (latest.programName) { %><strong>Program:</strong> <%= latest.programName %><br><% } %>
       <strong>Messages:</strong> <%= emails.length %>
@@ -60,29 +61,41 @@
       <% } %>
     <% } %>
 
-    <!-- Message thread -->
+    <!-- Message thread (inbound + outbound, oldest first) -->
     <div style="display: flex; flex-direction: column; gap: 16px; margin-bottom: 24px;">
-      <% emails.forEach((e, idx) => { %>
-        <div style="background: var(--white); border: 1px solid #ddd; border-radius: var(--radius); overflow: hidden;">
-          <div style="display: flex; justify-content: space-between; align-items: center; padding: 10px 16px; background: <%= e.status === 'draft' ? '#fff8e1' : e.status === 'failed' ? '#fce4ec' : '#f5f5f5' %>; border-bottom: 1px solid #eee; font-size: 0.8rem;">
+      <% emails.forEach((e) => { %>
+        <% const inbound = (e.direction || 'out') === 'in'; %>
+        <div style="background: var(--white); border: 1px solid #ddd; border-<%= inbound ? 'left' : 'right' %>: 4px solid <%= inbound ? 'var(--brown)' : 'var(--green-mid)' %>; border-radius: var(--radius); overflow: hidden; <%= inbound ? '' : 'margin-left: 28px;' %> <%= inbound ? 'margin-right: 28px;' : '' %>">
+          <div style="display: flex; justify-content: space-between; align-items: center; padding: 10px 16px; background: <%= inbound ? '#f6f2ec' : e.status === 'draft' ? '#fff8e1' : e.status === 'failed' ? '#fce4ec' : '#f1f6f0' %>; border-bottom: 1px solid #eee; font-size: 0.8rem;">
             <div>
-              <span class="badge badge-<%= e.status %>"><%= e.status %></span>
+              <% if (inbound) { %>
+                <span style="font-weight:700; color:var(--brown);">&#x2199; Received</span>
+                <% if (e.mailbox) { %><span style="font-size:0.7rem; font-weight:700; padding:1px 6px; border-radius:8px; margin-left:6px; color:#fff; background:<%= e.mailbox === 'registration' ? 'var(--green-mid)' : 'var(--brown)' %>;"><%= e.mailbox === 'registration' ? 'Reg' : 'Info' %></span><% } %>
+                <span style="margin-left: 8px;">from <strong><%= e.fromName ? e.fromName + ' <' + e.fromAddr + '>' : e.fromAddr %></strong></span>
+              <% } else { %>
+                <span class="badge badge-<%= e.status %>"><%= e.status %></span>
+                <span style="margin-left: 8px;">&#x2197; Sent</span>
+              <% } %>
               <strong style="margin-left: 8px;"><%= e.subject %></strong>
             </div>
             <div style="color: var(--text-light);">
-              <% if (e.sentAt) { %>Sent <%= e.sentAt %><% } else { %>Created <%= e.createdAt %><% } %>
+              <% if (inbound) { %><%= e.receivedAt %><% } else if (e.sentAt) { %>Sent <%= e.sentAt %><% } else { %>Created <%= e.createdAt %><% } %>
             </div>
           </div>
           <div style="padding: 16px;">
-            <% if (e.status === 'draft') { %>
+            <% if (!inbound && e.status === 'draft') { %>
               <div style="font-size: 0.85rem; color: var(--text-light); margin-bottom: 8px;">Draft — <a href="/admin/messages/emails/<%= e.id %>/edit">Edit & Send</a></div>
             <% } %>
-            <div style="white-space: pre-wrap; font-size: 0.9rem;"><%- e.body %></div>
+            <% if (inbound) { %>
+              <div style="white-space: pre-wrap; font-size: 0.9rem;"><%= e.bodyText || '(no text content)' %></div>
+            <% } else { %>
+              <div style="white-space: pre-wrap; font-size: 0.9rem;"><%- e.body %></div>
+            <% } %>
             <% if (e.attachments && e.attachments.length > 0) { %>
               <div style="margin-top: 10px; padding-top: 8px; border-top: 1px solid #eee; font-size: 0.8rem;">
                 <strong>Attachments:</strong>
                 <% e.attachments.forEach(att => { %>
-                  <a href="<%= att.url %>" target="_blank" style="margin-left: 8px;"><%= att.filename %></a>
+                  <a href="<%= att.url %>" target="_blank" rel="noopener" style="margin-left: 8px;"><%= att.filename %></a>
                 <% }) %>
               </div>
             <% } %>
@@ -91,24 +104,40 @@
       <% }) %>
     </div>
 
-    <!-- Follow-up form (only if no pending draft) -->
-    <% const hasDraft = emails.some(e => e.status === 'draft'); %>
-    <% if (!hasDraft) { %>
+    <!-- Reply (only if no pending draft) -->
+    <% const hasDraft = emails.some(e => (e.direction || 'out') === 'out' && e.status === 'draft'); %>
+    <% if (hasDraft) { %>
+      <div style="background: var(--white); border: 1px solid #ddd; border-radius: var(--radius); padding: 20px; color: var(--text-light);">
+        There's an unsent draft in this thread — open it above to edit &amp; send before replying.
+      </div>
+    <% } else if (!mailEnabled) { %>
+      <div style="background: var(--white); border: 1px solid #ddd; border-radius: var(--radius); padding: 20px; color: var(--text-light);">
+        Replying is disabled — set the <code>MAIL_*</code> mailbox env vars to send through the mailbox.
+      </div>
+    <% } else { %>
       <div style="background: var(--white); border: 1px solid #ddd; border-radius: var(--radius); padding: 20px;">
-        <h3 style="color: var(--green-dark); margin-bottom: 12px; font-size: 1rem;">Send Follow-up</h3>
-        <form method="POST" action="/admin/messages/emails/<%= latest.id %>/followup">
+        <h3 style="color: var(--green-dark); margin-bottom: 4px; font-size: 1rem;">Reply</h3>
+        <div style="font-size: 0.8rem; color: var(--text-light); margin-bottom: 12px;">
+          Sending to <strong><%= replyTo %></strong> from the <strong><%= replyAccount === 'registration' ? 'Registration' : 'Info' %></strong> mailbox.
+        </div>
+        <form method="POST" action="/admin/messages/reply">
+          <input type="hidden" name="to" value="<%= replyTo %>">
+          <input type="hidden" name="account" value="<%= replyAccount %>">
+          <input type="hidden" name="in_reply_to" value="<%= inReplyTo %>">
+          <input type="hidden" name="references" value="<%= references %>">
+          <% if (registrationId) { %><input type="hidden" name="registration_id" value="<%= registrationId %>"><% } %>
           <div class="form-group">
             <label>Subject</label>
-            <input type="text" name="subject" value="Re: <%= emails[0].subject %>" style="width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: var(--radius);">
+            <input type="text" name="subject" value="<%= (emails[0].subject || '').slice(0,4).toLowerCase() === 're: ' ? emails[0].subject : 'Re: ' + emails[0].subject %>" style="width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: var(--radius);">
           </div>
           <div class="form-group">
-            <label>Body</label>
-            <textarea name="body" rows="6" placeholder="Type your follow-up message..."
+            <label>Message</label>
+            <textarea name="body" rows="6" placeholder="Type your reply..."
               style="width: 100%; padding: 12px; border: 1px solid #ccc; border-radius: var(--radius); font-family: inherit; font-size: 0.95rem;"></textarea>
           </div>
           <button type="submit" class="btn btn-green"
-            onclick="return confirm('Send follow-up to <%= latest.toAddr %>?')">
-            Send Follow-up
+            onclick="return confirm('Send reply to <%= replyTo %>?')">
+            Send Reply
           </button>
         </form>
       </div>

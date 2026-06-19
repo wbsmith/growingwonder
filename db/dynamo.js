@@ -344,6 +344,7 @@ async function createRegistration(data) {
     const emailItem = {
       id: emailId,
       registrationId: id,
+      direction: 'out',
       toAddr: data.parentEmail,
       subject: data.emailSubject,
       body: data.emailBody,
@@ -747,13 +748,19 @@ async function removeEmailAttachment(id, index) {
   }));
 }
 
-async function markEmailSent(id) {
+async function markEmailSent(id, messageId) {
+  const names = { '#st': 'status' };
+  const values = { ':sent': 'sent', ':now': new Date().toISOString() };
+  let expr = 'SET #st = :sent, sentAt = :now, #dir = :out';
+  names['#dir'] = 'direction';
+  values[':out'] = 'out';
+  if (messageId) { expr += ', messageId = :mid'; values[':mid'] = messageId; }
   await client.send(new UpdateCommand({
     TableName: T.emails,
     Key: { id },
-    UpdateExpression: 'SET #st = :sent, sentAt = :now',
-    ExpressionAttributeNames: { '#st': 'status' },
-    ExpressionAttributeValues: { ':sent': 'sent', ':now': new Date().toISOString() },
+    UpdateExpression: expr,
+    ExpressionAttributeNames: names,
+    ExpressionAttributeValues: values,
   }));
 }
 
@@ -879,6 +886,103 @@ async function getEmailsByRegistration(registrationId) {
   return (Items || []).sort((a, b) => a.createdAt.localeCompare(b.createdAt));
 }
 
+// ---- Inbound mail (IMAP mirror) ----
+//
+// Inbound and outbound messages share the wiw-email-queue table, distinguished
+// by `direction` ('in' | 'out'; missing == 'out' for legacy rows). Inbound rows
+// carry the source mailbox, IMAP uid/uidvalidity (for incremental sync), the
+// RFC Message-ID / In-Reply-To (for threading), and a read flag.
+
+async function createInboundEmail(item) {
+  await client.send(new PutCommand({ TableName: T.emails, Item: item }));
+  return item.id;
+}
+
+async function createOutboundEmail(item) {
+  await client.send(new PutCommand({ TableName: T.emails, Item: item }));
+  return item.id;
+}
+
+// Per-mailbox sync state derived from already-stored rows (no separate table):
+// the highest IMAP uid seen for each uidvalidity, plus the set of Message-IDs
+// already stored (belt-and-suspenders dedup). Mirrors the full-scan pattern of
+// getAllEmails — fine for this table's size.
+async function getInboundState(mailbox) {
+  const { Items } = await client.send(new ScanCommand({
+    TableName: T.emails,
+    FilterExpression: '#dir = :in AND mailbox = :m AND attribute_not_exists(deletedAt)',
+    ExpressionAttributeNames: { '#dir': 'direction' },
+    ExpressionAttributeValues: { ':in': 'in', ':m': mailbox },
+  }));
+  const maxUidByValidity = {};
+  const messageIds = new Set();
+  for (const it of Items || []) {
+    if (it.messageId) messageIds.add(it.messageId);
+    if (typeof it.imapUid === 'number' && it.imapUidValidity != null) {
+      const v = String(it.imapUidValidity);
+      if (!maxUidByValidity[v] || it.imapUid > maxUidByValidity[v]) maxUidByValidity[v] = it.imapUid;
+    }
+  }
+  return { maxUidByValidity, messageIds };
+}
+
+// All non-deleted messages exchanged with a given address (case-insensitive),
+// where "the other party" is fromAddr for inbound and toAddr for outbound.
+// Backs address-keyed threads that aren't tied to a registration.
+async function getThreadByAddr(addr) {
+  const target = (addr || '').toLowerCase();
+  const all = await getAllEmails();
+  return all
+    .filter(e => {
+      const counterparty = (e.direction === 'in' ? e.fromAddr : e.toAddr) || '';
+      return counterparty.toLowerCase() === target;
+    })
+    .sort((a, b) => (a.createdAt || '').localeCompare(b.createdAt || ''));
+}
+
+// Most recent registration linked to an outbound message addressed to `addr`.
+// Used to attach an inbound reply to the right registration thread when the
+// reply's In-Reply-To header can't be matched directly.
+async function findRegistrationIdByEmail(addr) {
+  const target = (addr || '').toLowerCase();
+  const all = await getAllEmails();
+  const match = all
+    .filter(e => e.registrationId && (e.toAddr || '').toLowerCase() === target)
+    .sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''))[0];
+  return match ? match.registrationId : null;
+}
+
+// Resolve the registration an outbound message belongs to from a reply's
+// In-Reply-To / References Message-IDs (preferred, exact threading).
+async function findRegistrationIdByMessageId(messageIds) {
+  const wanted = (messageIds || []).filter(Boolean);
+  if (wanted.length === 0) return null;
+  const all = await getAllEmails();
+  const match = all.find(e => e.messageId && wanted.includes(e.messageId) && e.registrationId);
+  return match ? match.registrationId : null;
+}
+
+async function markEmailRead(id) {
+  await client.send(new UpdateCommand({
+    TableName: T.emails,
+    Key: { id },
+    UpdateExpression: 'SET #read = :true',
+    ExpressionAttributeNames: { '#read': 'read' },
+    ExpressionAttributeValues: { ':true': true },
+  }));
+}
+
+async function countUnreadInbound() {
+  const { Count } = await client.send(new ScanCommand({
+    TableName: T.emails,
+    FilterExpression: '#dir = :in AND #read = :false AND attribute_not_exists(deletedAt)',
+    ExpressionAttributeNames: { '#dir': 'direction', '#read': 'read' },
+    ExpressionAttributeValues: { ':in': 'in', ':false': false },
+    Select: 'COUNT',
+  }));
+  return Count || 0;
+}
+
 // ---- Bulk email helpers ----
 
 async function getEmailsByDate(programId, date) {
@@ -945,6 +1049,8 @@ module.exports = {
   countRegistrationsByProgram, deleteRegistration, mergeRegistrations, autoMergeRegistrations, removeDateFromRegistration, updatePayment,
   getAllEmails, getEmail, getEmailsByRegistration, updateEmailDraft, addEmailAttachment, removeEmailAttachment,
   markEmailSent, markEmailFailed,
+  createInboundEmail, createOutboundEmail, getInboundState, getThreadByAddr, findRegistrationIdByEmail, findRegistrationIdByMessageId,
+  markEmailRead, countUnreadInbound,
   countPendingEmails, getDashboardStats,
   createInquiry, getAllInquiries, getInquiry, replyToInquiry, countNewInquiries, softDeleteMessage,
   getEmailsByDate, getEmailsByWeek, getAllEmails_addresses,

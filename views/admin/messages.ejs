@@ -2,22 +2,48 @@
 <link rel="stylesheet" href="/css/admin.css">
 
 <div class="admin-layout">
-  <%- include('_sidebar', { active: 'messages', tab: tab }) %>
+  <%- include('_sidebar', { active: 'messages', tab: tab, unreadInbox: typeof unreadInbox !== 'undefined' ? unreadInbox : 0 }) %>
   <main class="admin-main">
-    <h1><%= tab === 'bulk' ? 'Bulk Send' : tab === 'inquiries' ? 'Inquiries' : 'Confirmations' %></h1>
+    <h1><%= tab === 'bulk' ? 'Bulk Send' : tab === 'inquiries' ? 'Inquiries' : 'Inbox' %></h1>
 
     <% if (tab === 'confirmations') { %>
-      <!-- CONFIRMATIONS TAB (threaded) -->
+      <!-- INBOX TAB (mirrors registration@ + info@; threaded) -->
+      <%
+        const filterOpts = [
+          { key: 'all', label: 'All' },
+          { key: 'registration', label: 'Registration' },
+          { key: 'info', label: 'Info' },
+          { key: 'unread', label: 'Unread' },
+          { key: 'confirmations', label: 'Confirmations' },
+        ];
+        const activeFilter = typeof filter !== 'undefined' ? filter : 'all';
+      %>
+      <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px; margin-bottom:16px;">
+        <div style="display:flex; gap:6px; flex-wrap:wrap;">
+          <% filterOpts.forEach(f => { %>
+            <a href="/admin/messages?tab=confirmations&filter=<%= f.key %>"
+               class="btn btn-sm <%= activeFilter === f.key ? 'btn-green' : 'btn-outline' %>"><%= f.label %></a>
+          <% }) %>
+        </div>
+        <div style="display:flex; align-items:center; gap:10px;">
+          <span id="refreshStatus" style="font-size:0.8rem; color:var(--text-light);"></span>
+          <% if (mailEnabled) { %>
+            <button type="button" class="btn btn-outline btn-sm" id="refreshInboxBtn" onclick="refreshInbox(true)">&#x21bb; Refresh</button>
+          <% } else { %>
+            <span style="font-size:0.8rem; color:var(--text-light);" title="Set MAIL_* env vars to enable inbound sync">Inbound not configured</span>
+          <% } %>
+        </div>
+      </div>
+
       <% if (threads.length === 0) { %>
-        <p style="color: var(--text-light);">No emails in queue.</p>
+        <p style="color: var(--text-light);">No messages<%= activeFilter !== 'all' ? ' for this filter' : '' %>.</p>
       <% } else { %>
         <table class="data-table">
           <thead>
             <tr>
-              <th>Status</th>
-              <th>To</th>
-              <th>Child</th>
-              <th>Program</th>
+              <th></th>
+              <th>From / To</th>
+              <th>Mailbox</th>
               <th>Subject</th>
               <th>Messages</th>
               <th>Latest</th>
@@ -26,12 +52,31 @@
           </thead>
           <tbody>
             <% threads.forEach(t => { %>
-              <tr>
-                <td><span class="badge badge-<%= t.latestStatus %>"><%= t.latestStatus %></span></td>
-                <td><%= t.toAddr %></td>
-                <td><%= t.childName %></td>
-                <td><%= t.programName %></td>
-                <td><%= t.subject %></td>
+              <%
+                const href = t.registrationId
+                  ? '/admin/messages/thread/' + t.registrationId
+                  : '/admin/messages/thread/addr/' + encodeURIComponent(t.addr);
+              %>
+              <tr style="<%= t.unreadCount > 0 ? 'font-weight:600; background:#f4f8f3;' : '' %>">
+                <td style="white-space:nowrap;">
+                  <% if (t.unreadCount > 0) { %><span title="<%= t.unreadCount %> unread" style="display:inline-block; width:9px; height:9px; border-radius:50%; background:var(--green-mid); vertical-align:middle;"></span><% } %>
+                  <% if (t.latestStatus === 'draft') { %><span class="badge badge-draft">draft</span><% } %>
+                  <% if (t.latestStatus === 'failed') { %><span class="badge badge-failed">failed</span><% } %>
+                </td>
+                <td>
+                  <div><%= t.toAddr %></div>
+                  <% if (t.parentName) { %><div style="font-size:0.78rem; color:var(--text-light); font-weight:normal;"><%= t.parentName %><%= t.childName ? ' · ' + t.childName : '' %></div><% } %>
+                </td>
+                <td style="white-space:nowrap;">
+                  <% t.mailboxes.forEach(mb => { %>
+                    <span style="display:inline-block; font-size:0.7rem; font-weight:700; padding:1px 6px; border-radius:8px; margin:1px 2px 1px 0; color:#fff; background:<%= mb === 'registration' ? 'var(--green-mid)' : 'var(--brown)' %>;"><%= mb === 'registration' ? 'Reg' : 'Info' %></span>
+                  <% }) %>
+                  <% if (t.isRegistration) { %><span style="display:inline-block; font-size:0.7rem; font-weight:700; padding:1px 6px; border-radius:8px; margin:1px 0; color:var(--green-dark); border:1px solid var(--green-mid);">Confirmation</span><% } %>
+                </td>
+                <td>
+                  <div><%= t.subject %></div>
+                  <% if (t.latestSnippet) { %><div style="font-size:0.78rem; color:var(--text-light); font-weight:normal; max-width:340px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"><%= t.latestDirection === 'in' ? '↩ ' : '' %><%= t.latestSnippet %></div><% } %>
+                </td>
                 <td style="text-align: center;">
                   <% if (t.messageCount > 1) { %>
                     <span style="background: var(--green-dark); color: white; border-radius: 10px; padding: 1px 7px; font-size: 0.75rem; font-weight: 600;"><%= t.messageCount %></span>
@@ -40,18 +85,10 @@
                   <% } %>
                 </td>
                 <td style="font-size: 0.8rem;"><%= t.latestDate %></td>
-                <td>
-                  <% if (t.registrationId) { %>
-                    <a href="/admin/messages/thread/<%= t.registrationId %>" class="btn btn-outline btn-sm">
-                      <%= t.latestStatus === 'draft' ? 'Open' : t.messageCount > 1 ? 'View Thread' : 'View' %>
-                    </a>
-                  <% } else if (t.latestStatus === 'draft') { %>
-                    <a href="/admin/messages/emails/<%= t.firstId %>/edit" class="btn btn-outline btn-sm">Edit & Send</a>
-                  <% } else if (t.latestStatus === 'sent') { %>
-                    <a href="/admin/messages/emails/<%= t.latestId %>/edit" class="btn btn-outline btn-sm">View</a>
-                  <% } else { %>
-                    <a href="/admin/messages/emails/<%= t.firstId %>/edit" class="btn btn-outline btn-sm">Retry</a>
-                  <% } %>
+                <td style="white-space:nowrap;">
+                  <a href="<%= href %>" class="btn btn-outline btn-sm">
+                    <%= t.latestStatus === 'draft' ? 'Open' : t.messageCount > 1 ? 'View Thread' : 'View' %>
+                  </a>
                   <form method="POST" action="/admin/messages/delete" style="display:inline; margin-left: 4px;">
                     <input type="hidden" name="type" value="email">
                     <input type="hidden" name="item_id" value="<%= t.messages.map(m => m.id).join(',') %>">
@@ -63,6 +100,31 @@
             <% }) %>
           </tbody>
         </table>
+      <% } %>
+
+      <% if (mailEnabled) { %>
+      <script>
+        // Pull new inbound mail. Auto-runs once on load (silent); the Refresh
+        // button runs it explicitly. Reloads to surface anything new.
+        async function refreshInbox(manual) {
+          const status = document.getElementById('refreshStatus');
+          const btn = document.getElementById('refreshInboxBtn');
+          if (btn) btn.disabled = true;
+          if (status) status.textContent = manual ? 'Checking mail…' : '';
+          try {
+            const res = await fetch('/admin/messages/refresh', { method: 'POST' });
+            const data = await res.json();
+            if (data.ok && data.total > 0) { window.location.reload(); return; }
+            if (status) status.textContent = manual ? (data.ok ? 'No new messages.' : ('Error: ' + (data.error || 'sync failed'))) : '';
+          } catch (e) {
+            if (status) status.textContent = manual ? 'Refresh failed.' : '';
+          } finally {
+            if (btn) btn.disabled = false;
+          }
+        }
+        // Silent auto-check shortly after load so replies appear without a click.
+        window.addEventListener('load', function () { setTimeout(function () { refreshInbox(false); }, 400); });
+      </script>
       <% } %>
 
     <% } else if (tab === 'bulk') { %>

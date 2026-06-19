@@ -4,9 +4,52 @@ const db = require('../db/dynamo');
 const { validateAdmin, requireAuth } = require('../lib/auth');
 const { loginLimiter, csrfMiddleware } = require('../lib/security');
 const mailer = require('../lib/mailer');
+const smtp = require('../lib/smtp');
+const mailConfig = require('../lib/mail-config');
+const imapSync = require('../lib/imap-sync');
 const storage = require('../lib/storage');
+const { ulid } = require('ulid');
 
 const asyncHandler = fn => (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
+
+// Send a reply through the mailbox (SMTP) so it lands in the mailbox's Sent
+// folder and threads for the recipient; falls back to SES if SMTP isn't set up.
+// Records the sent message as an outbound row so it shows in the thread.
+async function deliverReply({ to, account, subject, body, inReplyTo, references, registrationId, meta }) {
+  let messageId = null;
+  if (smtp.isConfigured()) {
+    const r = await smtp.sendReply({
+      accountKey: account, to, subject, text: body,
+      inReplyTo: inReplyTo || undefined,
+      references: references ? references.split(/\s+/).filter(Boolean) : [],
+    });
+    messageId = r.messageId;
+  } else if (mailer.isConfigured()) {
+    const r = await mailer.send(to, subject, body, 'registration', [], 'text', { inReplyTo, references });
+    messageId = r && r.messageId;
+  } else {
+    throw new Error('No mail transport configured (set MAIL_* or SES_* env vars).');
+  }
+  const now = new Date().toISOString();
+  await db.createOutboundEmail({
+    id: ulid(),
+    direction: 'out',
+    registrationId: registrationId || null,
+    toAddr: to,
+    mailbox: account || 'registration',
+    subject,
+    body,
+    status: 'sent',
+    sentAt: now,
+    createdAt: now,
+    messageId,
+    inReplyTo: inReplyTo || null,
+    parentName: (meta && meta.parentName) || null,
+    childName: (meta && meta.childName) || null,
+    programName: (meta && meta.programName) || null,
+  });
+  return messageId;
+}
 
 router.use(csrfMiddleware);
 
@@ -666,51 +709,86 @@ router.get('/roster', requireAuth, asyncHandler(async (req, res) => {
 
 router.get('/messages', requireAuth, asyncHandler(async (req, res) => {
   const tab = req.query.tab || 'confirmations';
+  const filter = req.query.filter || 'all';
   const programs = await db.getAllPrograms();
   const emails = await db.getAllEmails();
   const pendingEmails = await db.countPendingEmails();
+  const unreadInbox = await db.countUnreadInbound();
   const inquiries = await db.getAllInquiries();
   const newInquiries = await db.countNewInquiries();
 
-  // Group emails into threads by registrationId (or toAddr for orphans)
+  // Group inbound + outbound into conversation threads. The thread key is the
+  // registration (preferred) or the counterparty address — for inbound that's
+  // the sender, for outbound the recipient — so a person's whole exchange,
+  // sent and received, collapses into one row.
+  const dir = e => e.direction || 'out';
+  const counterpartyOf = e => ((dir(e) === 'in' ? e.fromAddr : e.toAddr) || '').toLowerCase();
+  // Outbound here is always sent from registration@; inbound carries its source.
+  const mailboxOf = e => (dir(e) === 'in' ? (e.mailbox || 'info') : 'registration');
+  const tsOf = e => e.receivedAt || e.createdAt || '';
+
   const threadMap = new Map();
   for (const e of emails) {
-    const key = e.registrationId || ('addr:' + e.toAddr);
+    const addr = counterpartyOf(e);
+    const key = e.registrationId || ('addr:' + addr);
     if (!threadMap.has(key)) {
       threadMap.set(key, {
         key,
-        registrationId: e.registrationId,
-        toAddr: e.toAddr,
+        registrationId: e.registrationId || null,
+        addr,
+        toAddr: addr,            // display label for the row
         childName: e.childName,
         programName: e.programName,
         parentName: e.parentName,
+        mailboxes: new Set(),
         messages: [],
       });
     }
-    threadMap.get(key).messages.push(e);
+    const t = threadMap.get(key);
+    t.messages.push(e);
+    t.mailboxes.add(mailboxOf(e));
+    // Backfill display fields from whichever message carries them.
+    if (!t.childName && e.childName) t.childName = e.childName;
+    if (!t.programName && e.programName) t.programName = e.programName;
+    if (!t.parentName) t.parentName = e.parentName || e.fromName;
   }
-  const threads = Array.from(threadMap.values()).map(t => {
-    const sorted = t.messages.sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+
+  let threads = Array.from(threadMap.values()).map(t => {
+    const sorted = t.messages.sort((a, b) => tsOf(a).localeCompare(tsOf(b)));
     const latest = sorted[sorted.length - 1];
     const hasDraft = sorted.some(m => m.status === 'draft');
     const hasFailed = sorted.some(m => m.status === 'failed');
+    const unreadCount = sorted.filter(m => dir(m) === 'in' && !m.read).length;
     return {
       ...t,
+      mailboxes: Array.from(t.mailboxes),
+      isRegistration: !!t.registrationId,
       subject: sorted[0].subject,
       messageCount: sorted.length,
-      latestDate: latest.createdAt,
+      latestDate: tsOf(latest),
       latestStatus: hasDraft ? 'draft' : hasFailed ? 'failed' : latest.status,
+      latestDirection: dir(latest),
+      latestSnippet: (dir(latest) === 'in' ? (latest.bodyText || '') : (latest.body || '')).replace(/<[^>]*>/g, '').slice(0, 120),
+      unreadCount,
       latestId: latest.id,
       firstId: sorted[0].id,
     };
   });
-  // Sort: drafts/failed first, then by most recent date descending
-  const statusOrder = { draft: 0, failed: 1, sent: 2 };
+
+  // Filter chips: mailbox (registration/info), unread, or the "confirmations"
+  // label (threads that originated from a registration).
+  if (filter === 'registration') threads = threads.filter(t => t.mailboxes.includes('registration'));
+  else if (filter === 'info') threads = threads.filter(t => t.mailboxes.includes('info'));
+  else if (filter === 'unread') threads = threads.filter(t => t.unreadCount > 0);
+  else if (filter === 'confirmations') threads = threads.filter(t => t.isRegistration);
+
+  // Sort: drafts first, then failed, then threads with unread replies, then by
+  // most recent activity descending.
+  const priority = t => (t.latestStatus === 'draft' ? 0 : t.latestStatus === 'failed' ? 1 : t.unreadCount > 0 ? 2 : 3);
   threads.sort((a, b) => {
-    const sa = statusOrder[a.latestStatus] ?? 3;
-    const sb = statusOrder[b.latestStatus] ?? 3;
-    if (sa !== sb) return sa - sb;
-    return b.latestDate.localeCompare(a.latestDate);
+    const pa = priority(a), pb = priority(b);
+    if (pa !== pb) return pa - pb;
+    return (b.latestDate || '').localeCompare(a.latestDate || '');
   });
 
   // For bulk tab: build week data
@@ -731,7 +809,26 @@ router.get('/messages', requireAuth, asyncHandler(async (req, res) => {
     }
   }
 
-  res.render('admin/messages', { tab, threads, pendingEmails, inquiries, newInquiries, programs, programWeeks });
+  res.render('admin/messages', {
+    tab, filter, threads, pendingEmails, unreadInbox, inquiries, newInquiries,
+    programs, programWeeks, mailEnabled: mailConfig.isConfigured(),
+  });
+}));
+
+// Pull new inbound mail from the Namecheap mailboxes on demand (called by the
+// Inbox "Refresh" button and on Inbox load). Runs synchronously and returns
+// counts; the page reloads if anything new arrived.
+router.post('/messages/refresh', requireAuth, asyncHandler(async (req, res) => {
+  if (!mailConfig.isConfigured()) {
+    return res.json({ ok: false, configured: false, total: 0, error: 'No mailboxes configured.' });
+  }
+  try {
+    const result = await imapSync.syncAllMailboxes();
+    res.json({ ok: true, ...result });
+  } catch (err) {
+    console.error('Inbox refresh failed:', err);
+    res.status(500).json({ ok: false, error: err.message });
+  }
 }));
 
 // Soft delete (emails and inquiries — accepts comma-separated IDs)
@@ -747,14 +844,51 @@ router.post('/messages/delete', requireAuth, asyncHandler(async (req, res) => {
   res.redirect(303, '/admin/messages?tab=' + tab);
 }));
 
-// Thread view — shows all emails for a registration as a conversation
+// Render a conversation (inbound + outbound interleaved), marking any unread
+// inbound messages read and computing where/how a reply should be sent.
+async function renderThread(req, res, { emails, registration, registrationId }) {
+  if (!emails || emails.length === 0) return res.status(404).send('No messages found for this thread.');
+  emails.sort((a, b) => (a.receivedAt || a.createdAt || '').localeCompare(b.receivedAt || b.createdAt || ''));
+
+  // Mark inbound messages read on open.
+  await Promise.all(emails
+    .filter(e => (e.direction || 'out') === 'in' && !e.read)
+    .map(e => db.markEmailRead(e.id).catch(() => {})));
+
+  const latest = emails[emails.length - 1];
+  const latestInbound = [...emails].reverse().find(e => (e.direction || 'out') === 'in');
+
+  // Reply target: the counterparty address. Reply-from mailbox: the account the
+  // latest inbound arrived in, else registration.
+  const replyTo = (latestInbound ? latestInbound.fromAddr
+    : (emails.find(e => e.toAddr) || {}).toAddr) || '';
+  const replyAccount = (latestInbound && latestInbound.mailbox) || 'registration';
+
+  // Thread headers so the recipient's client groups the reply.
+  const inReplyTo = (latestInbound && latestInbound.messageId) || latest.messageId || '';
+  const references = emails.map(e => e.messageId).filter(Boolean).join(' ');
+
+  res.render('admin/thread_view', {
+    emails, registration: registration || null, registrationId: registrationId || null,
+    latest, replyTo, replyAccount, inReplyTo, references,
+    mailEnabled: smtp.isConfigured(),
+  });
+}
+
+// Thread view by registration (confirmations + any replies linked to it).
 router.get('/messages/thread/:registrationId', requireAuth, asyncHandler(async (req, res) => {
   const registrationId = req.params.registrationId;
   const emails = await db.getEmailsByRegistration(registrationId);
   if (emails.length === 0) return res.status(404).send('No messages found for this thread.');
   const registration = await db.getRegistration(registrationId);
-  const latest = emails[emails.length - 1];
-  res.render('admin/thread_view', { emails, registration, registrationId, latest });
+  await renderThread(req, res, { emails, registration, registrationId });
+}));
+
+// Thread view by address (inbound/outbound with someone not tied to a registration).
+router.get('/messages/thread/addr/:addr', requireAuth, asyncHandler(async (req, res) => {
+  const addr = req.params.addr;
+  const emails = await db.getThreadByAddr(addr);
+  await renderThread(req, res, { emails, registration: null, registrationId: null });
 }));
 
 // Confirmation email edit/send
@@ -792,6 +926,8 @@ router.post('/messages/emails/:id/detach', requireAuth, asyncHandler(async (req,
   res.redirect(303, '/admin/messages/emails/' + req.params.id + '/edit');
 }));
 
+// Follow-up to an existing confirmation email (from email_edit). Delegates to
+// the shared SMTP-first reply path.
 router.post('/messages/emails/:id/followup', requireAuth, asyncHandler(async (req, res) => {
   const original = await db.getEmail(req.params.id);
   if (!original) {
@@ -803,30 +939,16 @@ router.post('/messages/emails/:id/followup', requireAuth, asyncHandler(async (re
     req.session.flash = { type: 'error', msg: 'Subject and body are required.' };
     return res.redirect(303, '/admin/messages/emails/' + req.params.id + '/edit');
   }
-  if (!mailer.isConfigured()) {
-    req.session.flash = { type: 'error', msg: 'SES not configured.' };
-    return res.redirect(303, '/admin/messages/emails/' + req.params.id + '/edit');
-  }
   try {
-    await mailer.send(original.toAddr, subject, body, 'registration');
-    // Create a new email record for the follow-up
-    const { ulid } = require('ulid');
-    const followupId = ulid();
-    const { DynamoDBDocumentClient, PutCommand } = require('@aws-sdk/lib-dynamodb');
-    const { DynamoDBClient } = require('@aws-sdk/client-dynamodb');
-    const clientConfig = { region: process.env.WIW_AWS_REGION || process.env.AWS_REGION || 'us-west-1' };
-    if (process.env.WIW_ACCESS_KEY_ID) {
-      clientConfig.credentials = { accessKeyId: process.env.WIW_ACCESS_KEY_ID, secretAccessKey: process.env.WIW_SECRET_ACCESS_KEY };
-    }
-    const ddb = DynamoDBDocumentClient.from(new DynamoDBClient(clientConfig));
-    await ddb.send(new PutCommand({
-      TableName: 'wiw-email-queue',
-      Item: {
-        id: followupId, registrationId: original.registrationId, toAddr: original.toAddr,
-        subject, body, status: 'sent', sentAt: new Date().toISOString(), createdAt: new Date().toISOString(),
-        parentName: original.parentName, childName: original.childName, programName: original.programName,
-      },
-    }));
+    await deliverReply({
+      to: original.toAddr,
+      account: original.mailbox || 'registration',
+      subject, body,
+      inReplyTo: original.messageId,
+      references: original.messageId,
+      registrationId: original.registrationId,
+      meta: original,
+    });
     req.session.flash = { type: 'success', msg: `Follow-up sent to ${original.toAddr}.` };
   } catch (err) {
     console.error('Follow-up error:', err);
@@ -835,8 +957,47 @@ router.post('/messages/emails/:id/followup', requireAuth, asyncHandler(async (re
   if (original.registrationId) {
     res.redirect(303, '/admin/messages/thread/' + original.registrationId);
   } else {
-    res.redirect(303, '/admin/messages?tab=confirmations');
+    res.redirect(303, '/admin/messages/thread/addr/' + encodeURIComponent(original.toAddr));
   }
+}));
+
+// Reply from the inbox thread view (works for registration and address threads).
+router.post('/messages/reply', requireAuth, asyncHandler(async (req, res) => {
+  const { to, account, subject, body, in_reply_to, references, registration_id } = req.body;
+  const backTo = registration_id
+    ? '/admin/messages/thread/' + registration_id
+    : '/admin/messages/thread/addr/' + encodeURIComponent(to || '');
+  if (!to || !subject || !body || !body.trim()) {
+    req.session.flash = { type: 'error', msg: 'Recipient, subject, and message are required.' };
+    return res.redirect(303, backTo);
+  }
+  let meta = {};
+  if (registration_id) {
+    const reg = await db.getRegistration(registration_id);
+    if (reg) {
+      meta = {
+        parentName: reg.parentName,
+        childName: (reg.children || []).map(c => c.name).filter(Boolean).join(', '),
+        programName: reg.programName,
+      };
+    }
+  }
+  try {
+    await deliverReply({
+      to,
+      account: account || 'registration',
+      subject, body,
+      inReplyTo: in_reply_to,
+      references,
+      registrationId: registration_id || null,
+      meta,
+    });
+    req.session.flash = { type: 'success', msg: `Reply sent to ${to}.` };
+  } catch (err) {
+    console.error('Reply error:', err);
+    req.session.flash = { type: 'error', msg: 'Send failed: ' + err.message };
+  }
+  res.redirect(303, backTo);
 }));
 
 router.post('/messages/emails/:id/send', requireAuth, asyncHandler(async (req, res) => {
@@ -873,8 +1034,8 @@ router.post('/messages/emails/:id/send', requireAuth, asyncHandler(async (req, r
         attachments.push({ filename: att.filename, content: Buffer.concat(chunks), contentType: att.contentType });
       }
     }
-    await mailer.send(email.toAddr, email.subject, email.body, 'registration', attachments);
-    await db.markEmailSent(email.id);
+    const sent = await mailer.send(email.toAddr, email.subject, email.body, 'registration', attachments);
+    await db.markEmailSent(email.id, sent && sent.messageId);
     req.session.flash = { type: 'success', msg: `Email sent to ${email.toAddr}.` };
   } catch (err) {
     console.error('SES error:', err);

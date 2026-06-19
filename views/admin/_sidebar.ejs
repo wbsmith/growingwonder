@@ -52,7 +52,9 @@
 
     <a href="/admin/messages" class="<%= active === 'messages' ? 'active' : '' %>">Messages</a>
     <% if (active === 'messages') { %>
-      <a href="/admin/messages?tab=confirmations" class="sub <%= typeof tab !== 'undefined' && tab === 'confirmations' ? 'active' : '' %>">Confirmations</a>
+      <a href="/admin/messages?tab=confirmations" class="sub <%= typeof tab !== 'undefined' && tab === 'confirmations' ? 'active' : '' %>">
+        Inbox<% if (typeof unreadInbox !== 'undefined' && unreadInbox > 0) { %> <span style="background: var(--green-dark); color: #fff; border-radius: 10px; padding: 0 6px; font-size: 0.7rem; font-weight: 700;"><%= unreadInbox %></span><% } %>
+      </a>
       <a href="/admin/messages?tab=bulk" class="sub <%= typeof tab !== 'undefined' && tab === 'bulk' ? 'active' : '' %>">Bulk Send</a>
       <a href="/admin/messages?tab=inquiries" class="sub <%= typeof tab !== 'undefined' && tab === 'inquiries' ? 'active' : '' %>">Inquiries</a>
     <% } %>

@@ -14,3 +14,17 @@ ADMIN_PASS=change-me
 AWS_REGION=us-west-1
 SES_FROM_EMAIL_REG=registration@worldinwonder.com
 SES_FROM_EMAIL_INFO=info@worldinwonder.com
+
+# Inbox: Namecheap Private Email mailboxes mirrored over IMAP (read) and used
+# for replies over SMTP (send). One credential set per mailbox; no DNS change.
+MAIL_HOST=mail.privateemail.com
+MAIL_REG_USER=registration@worldinwonder.com
+MAIL_REG_PASS=
+MAIL_INFO_USER=info@worldinwonder.com
+MAIL_INFO_PASS=
+# Optional: shared secret for the scheduled sync endpoint
+# GET /api/cron/sync-inbox?key=...  (e.g. wired to EventBridge Scheduler)
+MAIL_CRON_KEY=
+# Optional tuning: first-run history window (days) and per-sync cap
+# MAIL_FIRST_RUN_DAYS=90
+# MAIL_MAX_PER_SYNC=100
