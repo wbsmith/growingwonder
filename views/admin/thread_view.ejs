@@ -67,9 +67,9 @@
       <% } %>
     <% } %>
 
-    <!-- Message thread (inbound + outbound, oldest first) -->
+    <!-- Message thread (inbound + outbound, newest first) -->
     <div style="display: flex; flex-direction: column; gap: 16px; margin-bottom: 24px;">
-      <% emails.forEach((e) => { %>
+      <% emails.slice().reverse().forEach((e) => { %>
         <% const inbound = (e.direction || 'out') === 'in'; %>
         <div style="background: var(--white); border: 1px solid #ddd; border-<%= inbound ? 'left' : 'right' %>: 4px solid <%= inbound ? 'var(--brown)' : 'var(--green-mid)' %>; border-radius: var(--radius); overflow: hidden; <%= inbound ? '' : 'margin-left: 28px;' %> <%= inbound ? 'margin-right: 28px;' : '' %>">
           <div style="display: flex; justify-content: space-between; align-items: center; padding: 10px 16px; background: <%= inbound ? '#f6f2ec' : e.status === 'draft' ? '#fff8e1' : e.status === 'failed' ? '#fce4ec' : '#f1f6f0' %>; border-bottom: 1px solid #eee; font-size: 0.8rem;">
