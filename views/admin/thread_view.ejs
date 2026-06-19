@@ -26,10 +26,24 @@
           const dt = new Date(d + 'T00:00:00');
           return dt.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
         });
-        const hasAny = registration.parentName || registration.parentEmail || registration.parentPhone || participants.length > 0 || dates.length > 0 || registration.notes || responses.length > 0;
+        // Responses are surfaced above; the collapsible block holds the rest.
+        const hasDetails = registration.parentName || registration.parentEmail || registration.parentPhone || participants.length > 0 || dates.length > 0 || registration.notes;
       %>
-      <% if (hasAny) { %>
-        <details style="margin-bottom: 20px;">
+      <% if (responses.length > 0) { %>
+        <%# Respondent's answers — shown prominently (these regressed into a collapsed
+            accordion when the threaded view replaced the old email_edit viewer). %>
+        <div style="margin-bottom: 16px; padding: 16px 18px; background: var(--white); border: 1px solid var(--green-mid); border-radius: var(--radius); font-size: 0.92rem; line-height: 1.55;">
+          <strong style="color: var(--green-dark); display: block; margin-bottom: 6px;">Respondent's answers</strong>
+          <% responses.forEach(r => { %>
+            <div style="margin-top: 10px;">
+              <div style="font-weight: 600;"><%= r.label %></div>
+              <div style="white-space: pre-wrap;"><%= r.value %></div>
+            </div>
+          <% }) %>
+        </div>
+      <% } %>
+      <% if (hasDetails) { %>
+        <details style="margin-bottom: 20px;"<%= responses.length === 0 ? ' open' : '' %>>
           <summary style="cursor: pointer; font-weight: 600; color: var(--green-dark); font-size: 0.9rem; padding: 8px 0;">Registration Details</summary>
           <div style="padding: 14px 18px; background: var(--sand); border-radius: var(--radius); font-size: 0.9rem; line-height: 1.55; margin-top: 4px;">
             <% if (registration.parentName) { %><div><strong>Contact name:</strong> <%= registration.parentName %></div><% } %>
@@ -47,14 +61,6 @@
             <% } %>
             <% if (registration.notes) { %>
               <div style="margin-top: 6px;"><strong>Notes:</strong> <%= registration.notes %></div>
-            <% } %>
-            <% if (responses.length > 0) { %>
-              <div style="margin-top: 10px; padding-top: 8px; border-top: 1px solid #e0ddd5;">
-                <strong style="color: var(--green-dark);">Responses:</strong>
-                <% responses.forEach(r => { %>
-                  <div style="margin-top: 2px;"><strong><%= r.label %>:</strong> <%= r.value %></div>
-                <% }) %>
-              </div>
             <% } %>
           </div>
         </details>
