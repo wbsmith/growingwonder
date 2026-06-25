@@ -43,7 +43,6 @@
             <tr>
               <th></th>
               <th>From / To</th>
-              <th>Mailbox</th>
               <th>Subject</th>
               <th>Messages</th>
               <th>Latest</th>
@@ -67,14 +66,8 @@
                   <div><%= t.toAddr %></div>
                   <% if (t.parentName) { %><div style="font-size:0.78rem; color:var(--text-light); font-weight:normal;"><%= t.parentName %><%= t.childName ? ' · ' + t.childName : '' %></div><% } %>
                 </td>
-                <td style="white-space:nowrap;">
-                  <% t.mailboxes.forEach(mb => { %>
-                    <span style="display:inline-block; font-size:0.7rem; font-weight:700; padding:1px 6px; border-radius:8px; margin:1px 2px 1px 0; color:#fff; background:<%= mb === 'registration' ? 'var(--green-mid)' : 'var(--brown)' %>;"><%= mb === 'registration' ? 'Reg' : 'Info' %></span>
-                  <% }) %>
-                  <% if (t.isRegistration) { %><span style="display:inline-block; font-size:0.7rem; font-weight:700; padding:1px 6px; border-radius:8px; margin:1px 0; color:var(--green-dark); border:1px solid var(--green-mid);">Confirmation</span><% } %>
-                </td>
                 <td>
-                  <div><%= t.subject %></div>
+                  <div><%= t.subject %><% if (t.isRegistration) { %> <span style="display:inline-block; font-size:0.7rem; font-weight:700; padding:1px 6px; border-radius:8px; color:var(--green-dark); border:1px solid var(--green-mid); vertical-align:middle;">Confirmation</span><% } %></div>
                   <% if (t.latestSnippet) { %><div style="font-size:0.78rem; color:var(--text-light); font-weight:normal; max-width:340px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"><%= t.latestDirection === 'in' ? '↩ ' : '' %><%= t.latestSnippet %></div><% } %>
                 </td>
                 <td style="text-align: center;">

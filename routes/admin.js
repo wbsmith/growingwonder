@@ -782,14 +782,9 @@ router.get('/messages', requireAuth, asyncHandler(async (req, res) => {
   else if (filter === 'unread') threads = threads.filter(t => t.unreadCount > 0);
   else if (filter === 'confirmations') threads = threads.filter(t => t.isRegistration);
 
-  // Sort: drafts first, then failed, then threads with unread replies, then by
-  // most recent activity descending.
-  const priority = t => (t.latestStatus === 'draft' ? 0 : t.latestStatus === 'failed' ? 1 : t.unreadCount > 0 ? 2 : 3);
-  threads.sort((a, b) => {
-    const pa = priority(a), pb = priority(b);
-    if (pa !== pb) return pa - pb;
-    return (b.latestDate || '').localeCompare(a.latestDate || '');
-  });
+  // Sort: newest activity first, like a normal inbox. Unread is surfaced via
+  // bold row styling and drafts via a badge, so nothing is pinned to the top.
+  threads.sort((a, b) => (b.latestDate || '').localeCompare(a.latestDate || ''));
 
   // For bulk tab: build week data
   const programWeeks = {};
