@@ -42,6 +42,40 @@ email.
 
 ---
 
+## Rollback
+
+How to undo a bad deploy or migration. Tooling lives in the repo:
+`db/backup_tables.js` (logical JSON snapshot of a table) and
+`db/restore_tables.js` (re-put items; `DRY_RUN` supported). **Always snapshot
+`wiw-registrations` + `wiw-dates` before any data migration.**
+
+**Code (Amplify).** Fastest: console → app `growingwonder` → branch `main` →
+redeploy the last-good job. Or reset and force-push (triggers a build):
+`git reset --hard <good-commit-or-tag> && git push --force origin main`. Tag the
+pre-change commit before deploying so the rollback target is unambiguous.
+
+**DB (DynamoDB).** Three options, fastest first:
+1. **In-place re-put** from a logical snapshot:
+   `BACKUP_DIR=<dir> DRY_RUN=1 node db/restore_tables.js`, then again without
+   `DRY_RUN`. Caveat: rows created *after* the snapshot are left in place (not
+   deleted) — re-run the relevant migration afterward to reconcile, or accept
+   minor drift.
+2. **On-demand backup** → restore to a new table, then swap.
+3. **PITR** (point-in-time) where enabled — currently **on for `wiw-registrations`,
+   off for `wiw-dates`**.
+
+**Per-child-dates change (2026-06-24), if it must be undone:**
+- Code → redeploy Amplify **job 102** (commit `1eadd60`, tag `prod-pre-perchild`).
+- DB → pre-migration logical snapshot at `~/wiw-backups/2026-06-24-pre-migration/`
+  (bryan's machine); server-side on-demand backups
+  `wiw-registrations-preperchild-20260624-202124` and
+  `wiw-dates-preperchild-20260624-202124`; full runbook in
+  `~/wiw-backups/2026-06-24-pre-perchild/ROLLBACK.md`.
+- The migration only added `child.dates` to registrations and rewrote
+  `wiw-dates.enrolled`, so restoring those two tables fully reverses it.
+
+---
+
 ## Repo layout
 
 ```
