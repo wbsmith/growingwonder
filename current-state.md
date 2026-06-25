@@ -1,6 +1,6 @@
 # World in Wonder — Current State
 
-_Last updated: 2026-06-24. Branch `main` @ `fb5c585`, 2 commits ahead of `origin/main` (pending push)._
+_Last updated: 2026-06-24. Branch `main` @ `54887f5`, in sync with `origin/main`. Per-child dates **deployed** (Amplify job 103) and **migrated** on prod._
 
 Registration and admin web app for a kids' nature-program business
 (worldinwonder.com). Public site for browsing programs and registering; a
@@ -67,6 +67,7 @@ db/
   dynamo.js               all DynamoDB access
   seed.js, repair_*.js    seed + one-off repair scripts
   migrate_per_child_dates.js  backfill child.dates + recompute enrolled as heads
+  backup_tables.js, restore_tables.js  logical DynamoDB snapshot + restore (rollback)
 views/                    EJS (public) + views/admin/* (admin)
 scripts/test-imap.js      standalone mailbox connectivity check (no DB writes)
 ```
@@ -186,9 +187,13 @@ placeholders in a local `.env` are unused.)
 
 - `fb5c585` — **per-child date editing + head-count capacity** (this session):
   dates moved onto each child; `enrolled` now counts heads/day not families; new
-  admin per-child date editor; summary/rosters default to the most-active program;
-  `db/migrate_per_child_dates.js` added. **Committed, not yet pushed/deployed or
-  migrated.**
+  admin per-child date editor; summary/rosters default to the most-active program.
+  Deployed (Amplify job 103) and migrated on prod via
+  `db/migrate_per_child_dates.js` (27 regs backfilled, 14 counters recomputed; no
+  over-capacity). Pre-migration snapshot + rollback runbook in
+  `~/wiw-backups/2026-06-24-pre-migration/`.
+- `54887f5` / `e3070ff` — ops: DynamoDB logical backup + restore scripts; added
+  this doc to the repo.
 - `4a96323` — inbox: newest-first sort, dropped the Mailbox column.
 - `1eadd60` — idempotent inbound writes (deterministic id) to stop duplicates;
   thread view newest-first.
@@ -201,12 +206,6 @@ placeholders in a local `.env` are unused.)
 
 ## Known issues / loose ends
 
-- **Per-child dates migration not yet run.** `fb5c585` ships the new model but
-  existing registrations still have family-level `selectedDates` and `wiw-dates.
-  enrolled` still counts families. Run `db/migrate_per_child_dates.js` once after
-  deploying (DRY_RUN first) — Phase 1 backfills `child.dates`, Phase 2 recomputes
-  every counter as heads. A dry-run on current prod data showed clean deltas and
-  no over-capacity days. The per-child editor assumes this has run.
 - **Inbound egress on Lambda is unverified end-to-end.** IMAP/SMTP auth was
   proven from a local machine; the deployed function's outbound reach to 993/465
   is assumed (Amplify compute has internet egress by default). If a Refresh
