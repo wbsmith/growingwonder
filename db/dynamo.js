@@ -303,9 +303,47 @@ async function removeDate(programId, date) {
 
 // ---- Registrations ----
 
+// Dates live on each child (`child.dates`). The registration-level
+// `selectedDates` is the derived union of every child's dates and is kept in
+// sync on every write — many readers (CSV, email targeting, merge, displays)
+// rely on it for family-level "did anyone attend day X" semantics.
+function deriveSelectedDates(children) {
+  const s = new Set();
+  for (const c of (children || [])) for (const d of (c.dates || [])) s.add(d);
+  return Array.from(s).sort();
+}
+
+// Map of date -> number of children attending it (capacity is heads, not
+// families). Children predating per-child dates fall back to `fallbackDates`.
+// A registration with no participant rows (e.g. CIT applicant in custom
+// responses) counts as one participant on each of its dates.
+function headCountsByDate(children, fallbackDates) {
+  const m = new Map();
+  const kids = children || [];
+  if (kids.length === 0) {
+    for (const d of (fallbackDates || [])) m.set(d, (m.get(d) || 0) + 1);
+    return m;
+  }
+  for (const c of kids) {
+    const dates = Array.isArray(c.dates) ? c.dates : (fallbackDates || []);
+    for (const d of dates) m.set(d, (m.get(d) || 0) + 1);
+  }
+  return m;
+}
+
 async function createRegistration(data) {
   const id = ulid();
   const now = new Date().toISOString();
+
+  // Each child carries its own dates. Older callers pass a single family-wide
+  // `selectedDates` and dateless children — normalize so every child gets the
+  // family dates, then derive the registration-level union from the children.
+  const children = (data.children || []).map(c => ({
+    ...c,
+    dates: Array.isArray(c.dates) ? c.dates : (data.selectedDates || []),
+  }));
+  const selectedDates = deriveSelectedDates(children);
+
   const reg = {
     id,
     programId: data.programId,
@@ -314,28 +352,32 @@ async function createRegistration(data) {
     parentPhone: data.parentPhone,
     notes: data.notes || null,
     customResponses: data.customResponses || [],
-    children: data.children, // [{name, dob, healthcareProvider, allergies}]
-    selectedDates: data.selectedDates, // ["2026-06-15", ...]
+    children, // [{name, dob, healthcareProvider, allergies, dates}]
+    selectedDates, // derived union of all children's dates
     paymentDate: null,
     paymentAmount: null,
     paymentNotes: null,
     createdAt: now,
   };
 
-  // Transactionally: write registration + increment enrolled on each date
+  // Transactionally: write registration + increment each date's enrolled by the
+  // number of CHILDREN attending that date (capacity is heads, not families).
   const transactItems = [
     { Put: { TableName: T.registrations, Item: reg } },
   ];
-  for (const date of data.selectedDates) {
-    transactItems.push({
-      Update: {
-        TableName: T.dates,
-        Key: { programId: data.programId, date },
-        UpdateExpression: 'ADD enrolled :one',
-        ConditionExpression: 'attribute_not_exists(enrolled) OR enrolled < maxCapacity',
-        ExpressionAttributeValues: { ':one': 1 },
-      },
-    });
+  if (data.programId && data.programId !== 'imported') {
+    for (const date of selectedDates) {
+      const heads = children.filter(c => (c.dates || []).includes(date)).length;
+      transactItems.push({
+        Update: {
+          TableName: T.dates,
+          Key: { programId: data.programId, date },
+          UpdateExpression: 'ADD enrolled :n',
+          ConditionExpression: 'attribute_not_exists(enrolled) OR enrolled + :n <= maxCapacity',
+          ExpressionAttributeValues: { ':n': heads },
+        },
+      });
+    }
   }
 
   // Create email queue entry only if there's a subject (skip for imports)
@@ -424,18 +466,20 @@ async function deleteRegistration(id) {
 
   const item = reg.Item;
 
-  // Decrement enrolled counts on each date — guarded so the counter never goes below zero.
-  if (item.selectedDates && item.selectedDates.length > 0 && item.programId && item.programId !== 'imported') {
-    for (const date of item.selectedDates) {
+  // Decrement enrolled on each date by the number of children that attended it
+  // — guarded so the counter never goes below zero.
+  if (item.programId && item.programId !== 'imported') {
+    const heads = headCountsByDate(item.children, item.selectedDates);
+    for (const [date, n] of heads) {
       try {
         await client.send(new UpdateCommand({
           TableName: T.dates,
           Key: { programId: item.programId, date },
           UpdateExpression: 'ADD enrolled :neg',
-          ConditionExpression: 'attribute_exists(enrolled) AND enrolled > :zero',
-          ExpressionAttributeValues: { ':neg': -1, ':zero': 0 },
+          ConditionExpression: 'attribute_exists(enrolled) AND enrolled >= :n',
+          ExpressionAttributeValues: { ':neg': -n, ':n': n },
         }));
-      } catch (e) { /* date missing or already at zero — skip */ }
+      } catch (e) { /* date missing or would go negative — skip */ }
     }
   }
 
@@ -475,21 +519,26 @@ async function mergeRegistrations(ids) {
   const primary = regs[0];
   const others = regs.slice(1);
 
-  // Merge dates (dedup)
-  const allDates = new Set(primary.selectedDates || []);
-  for (const r of others) {
-    (r.selectedDates || []).forEach(d => allDates.add(d));
-  }
-
-  // Merge children (dedup by name+dob)
+  // Merge children (dedup by name+dob), unioning each child's dates. A child
+  // predating per-child dates inherits its registration's family dates.
   const childKey = (c) => (c.name || '') + '|' + (c.dob || '');
   const childMap = new Map();
-  for (const c of (primary.children || [])) childMap.set(childKey(c), c);
-  for (const r of others) {
-    for (const c of (r.children || [])) {
-      if (!childMap.has(childKey(c))) childMap.set(childKey(c), c);
+  const addChild = (c, fallbackDates) => {
+    const key = childKey(c);
+    const dates = Array.isArray(c.dates) ? c.dates : (fallbackDates || []);
+    if (!childMap.has(key)) {
+      childMap.set(key, { ...c, dates: [...dates] });
+    } else {
+      const existing = childMap.get(key);
+      existing.dates = Array.from(new Set([...(existing.dates || []), ...dates])).sort();
     }
+  };
+  for (const c of (primary.children || [])) addChild(c, primary.selectedDates);
+  for (const r of others) {
+    for (const c of (r.children || [])) addChild(c, r.selectedDates);
   }
+  const mergedChildren = Array.from(childMap.values());
+  const allDates = new Set(deriveSelectedDates(mergedChildren));
 
   // Merge notes
   const allNotes = [primary.notes, ...others.map(r => r.notes)].filter(Boolean);
@@ -502,7 +551,7 @@ async function mergeRegistrations(ids) {
     UpdateExpression: 'SET selectedDates = :dates, children = :children, notes = :notes',
     ExpressionAttributeValues: {
       ':dates': Array.from(allDates).sort(),
-      ':children': Array.from(childMap.values()),
+      ':children': mergedChildren,
       ':notes': mergedNotes,
     },
   }));
@@ -656,35 +705,108 @@ async function autoMergeRegistrations(field) {
   return count;
 }
 
-async function removeDateFromRegistration(id, date) {
+// Replace each child's date set (per-child editing). `childDates` is index-
+// aligned to the registration's `children`: childDates[i] is child i's new full
+// set of dates (replace semantics). Adjusts each date's head counter by the
+// delta and returns any dates pushed over capacity (admin edits may exceed it).
+async function updateRegistrationDates(id, childDates) {
   const { Item } = await client.send(new GetCommand({
     TableName: T.registrations, Key: { id },
   }));
-  if (!Item) return;
+  if (!Item) return { ok: false, error: 'Registration not found.' };
 
-  const originalDates = Item.selectedDates || [];
-  const wasPresent = originalDates.includes(date);
-  const dates = originalDates.filter(d => d !== date);
+  const isImported = !Item.programId || Item.programId === 'imported';
+  const oldChildren = Item.children || [];
+
+  // Per-child editing needs participant rows. Refuse the rare child-less
+  // registration so we never wipe its family-level selectedDates.
+  if (oldChildren.length === 0) {
+    return { ok: false, error: 'This registration has no participants to edit.' };
+  }
+
+  // Restrict submissions to real program dates so we never create a counter
+  // row for a nonexistent date; capture capacities for the over-capacity check.
+  let validSet = null;
+  const capByDate = {};
+  if (!isImported) {
+    const programDates = await getDatesByProgram(Item.programId);
+    validSet = new Set(programDates.map(d => d.date));
+    programDates.forEach(d => { capByDate[d.date] = { maxCapacity: d.maxCapacity, enrolled: d.enrolled || 0 }; });
+  }
+
+  const newChildren = oldChildren.map((c, i) => {
+    let nd = Array.from(new Set(childDates[i] || []));
+    if (validSet) nd = nd.filter(d => validSet.has(d));
+    nd.sort();
+    return { ...c, dates: nd };
+  });
+
+  const oldH = headCountsByDate(oldChildren, Item.selectedDates);
+  const newH = headCountsByDate(newChildren, null);
+  const newSelected = deriveSelectedDates(newChildren);
+
+  // Persist the registration first — counters are a derived cache the migration
+  // script can always rebuild from registrations.
   await client.send(new UpdateCommand({
     TableName: T.registrations,
     Key: { id },
-    UpdateExpression: 'SET selectedDates = :dates',
-    ExpressionAttributeValues: { ':dates': dates },
+    UpdateExpression: 'SET children = :c, selectedDates = :s',
+    ExpressionAttributeValues: { ':c': newChildren, ':s': newSelected },
   }));
 
-  // Decrement only if the date was actually counted for this registration,
-  // and guard against driving the counter negative.
-  if (wasPresent && Item.programId && Item.programId !== 'imported') {
-    try {
-      await client.send(new UpdateCommand({
-        TableName: T.dates,
-        Key: { programId: Item.programId, date },
-        UpdateExpression: 'ADD enrolled :neg',
-        ConditionExpression: 'attribute_exists(enrolled) AND enrolled > :zero',
-        ExpressionAttributeValues: { ':neg': -1, ':zero': 0 },
-      }));
-    } catch (e) { /* date missing or already at zero — skip */ }
+  const overCapacity = [];
+  if (!isImported) {
+    const dates = new Set([...oldH.keys(), ...newH.keys()]);
+    for (const date of dates) {
+      const delta = (newH.get(date) || 0) - (oldH.get(date) || 0);
+      if (delta === 0) continue;
+      if (delta > 0) {
+        // Admin override: no capacity condition — surface a warning instead.
+        await client.send(new UpdateCommand({
+          TableName: T.dates,
+          Key: { programId: Item.programId, date },
+          UpdateExpression: 'ADD enrolled :d',
+          ExpressionAttributeValues: { ':d': delta },
+        }));
+        const cap = capByDate[date];
+        if (cap && cap.maxCapacity != null && (cap.enrolled + delta) > cap.maxCapacity) {
+          overCapacity.push({ date, enrolled: cap.enrolled + delta, capacity: cap.maxCapacity });
+        }
+      } else {
+        try {
+          await client.send(new UpdateCommand({
+            TableName: T.dates,
+            Key: { programId: Item.programId, date },
+            UpdateExpression: 'ADD enrolled :d',
+            ConditionExpression: 'attribute_exists(enrolled) AND enrolled >= :abs',
+            ExpressionAttributeValues: { ':d': delta, ':abs': -delta },
+          }));
+        } catch (e) { /* counter drift — reconciled by the recompute script */ }
+      }
+    }
   }
+
+  return { ok: true, selectedDates: newSelected, overCapacity };
+}
+
+// Per-program registration counts for default-program selection. `active` =
+// registrations with at least one attendance date >= today (a YYYY-MM-DD string).
+async function getRegistrationCountsByProgram(today) {
+  const counts = {};
+  let ExclusiveStartKey;
+  do {
+    const { Items, LastEvaluatedKey } = await client.send(new ScanCommand({
+      TableName: T.registrations, ExclusiveStartKey,
+    }));
+    for (const r of (Items || [])) {
+      if (!r.programId) continue;
+      const c = counts[r.programId] || (counts[r.programId] = { active: 0, total: 0 });
+      c.total++;
+      if ((r.selectedDates || []).some(d => d >= today)) c.active++;
+    }
+    ExclusiveStartKey = LastEvaluatedKey;
+  } while (ExclusiveStartKey);
+  return counts;
 }
 
 async function updatePayment(id, paymentDate, paymentAmount, paymentNotes) {
@@ -1046,7 +1168,8 @@ module.exports = {
   materializeFormConfig,
   getDatesByProgram, addDates, updateDateCapacity, removeDate,
   createRegistration, getRegistration, getEnrollments, getRegistrationsByProgram,
-  countRegistrationsByProgram, deleteRegistration, mergeRegistrations, autoMergeRegistrations, removeDateFromRegistration, updatePayment,
+  countRegistrationsByProgram, deleteRegistration, mergeRegistrations, autoMergeRegistrations, updateRegistrationDates, updatePayment,
+  deriveSelectedDates, getRegistrationCountsByProgram,
   getAllEmails, getEmail, getEmailsByRegistration, updateEmailDraft, addEmailAttachment, removeEmailAttachment,
   markEmailSent, markEmailFailed,
   createInboundEmail, createOutboundEmail, getInboundState, getThreadByAddr, findRegistrationIdByEmail, findRegistrationIdByMessageId,

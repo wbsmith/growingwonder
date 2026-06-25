@@ -1,0 +1,103 @@
+<%- include('../layout_head', { title: 'Edit Dates' }) %>
+<link rel="stylesheet" href="/css/admin.css">
+
+<div class="admin-layout">
+  <%- include('_sidebar', { active: 'enrollments' }) %>
+  <main class="admin-main">
+    <h1>Edit Dates<%= reg.parentName ? ': ' + reg.parentName : '' %></h1>
+    <p style="margin-bottom: 8px; color: var(--text-light); font-size: 0.9rem;">
+      <%= program ? program.name : 'Imported contact' %>
+    </p>
+    <p style="margin-bottom: 24px;"><a href="/admin/enrollments?tab=registrations">&larr; Back to Registrations</a></p>
+
+    <% if (!dates || dates.length === 0) { %>
+      <p style="color: var(--text-light);">This registration's program has no dates to edit
+        <% if (reg.programId === 'imported') { %>(imported contact)<% } %>.</p>
+    <% } else if (!reg.children || reg.children.length === 0) { %>
+      <p style="color: var(--text-light);">This registration has no participants, so there are no
+        per-child dates to edit.</p>
+    <% } else { %>
+      <%
+        // Group available program dates into Monday-based weeks for display.
+        const weekBuckets = new Map();
+        dates.forEach(d => {
+          const dt = new Date(d.date + 'T00:00:00');
+          const dow = dt.getDay();
+          const mon = new Date(dt);
+          mon.setDate(mon.getDate() - ((dow + 6) % 7));
+          const monStr = mon.toISOString().slice(0, 10);
+          if (!weekBuckets.has(monStr)) weekBuckets.set(monStr, []);
+          weekBuckets.get(monStr).push(d);
+        });
+        const weeks = Array.from(weekBuckets.entries()).sort((a, b) => a[0].localeCompare(b[0]));
+        const fmtRange = (monStr) => {
+          const mon = new Date(monStr + 'T00:00:00');
+          const fri = new Date(mon); fri.setDate(fri.getDate() + 4);
+          return mon.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+            + '–' + fri.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+        };
+      %>
+      <p style="margin-bottom: 16px; color: var(--text-light); font-size: 0.85rem;">
+        Check the days each child attends. Numbers show current enrolled / capacity for that day;
+        over-capacity days are allowed but flagged in red.
+      </p>
+
+      <form method="POST" action="/admin/enrollments/edit-dates">
+        <input type="hidden" name="registration_id" value="<%= reg.id %>">
+
+        <% reg.children.forEach((child, i) => { %>
+          <% const checked = new Set(child.dates || []); %>
+          <div class="child-block" style="background: var(--white); border-radius: var(--radius); padding: 16px 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); margin-bottom: 20px;">
+            <div style="display: flex; align-items: baseline; gap: 12px; margin-bottom: 12px; flex-wrap: wrap;">
+              <h3 style="color: var(--green-dark); margin: 0;">
+                <%= child.name || ('Participant ' + (i + 1)) %><% if (child.dob) { %>
+                  <span style="font-weight: 400; color: var(--text-light); font-size: 0.85rem;">(<%= child.dob %>)</span>
+                <% } %>
+              </h3>
+              <span style="font-size: 0.8rem;">
+                <a href="#" onclick="setChild(<%= i %>, true); return false;">Select all</a> &middot;
+                <a href="#" onclick="setChild(<%= i %>, false); return false;">Clear</a>
+              </span>
+            </div>
+
+            <% weeks.forEach(([monStr, weekDates]) => { %>
+              <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px; flex-wrap: wrap;">
+                <span style="min-width: 110px; font-size: 0.75rem; font-weight: 600; color: var(--text-light);"><%= fmtRange(monStr) %></span>
+                <% weekDates.forEach(d => {
+                  const dt = new Date(d.date + 'T00:00:00');
+                  const cap = d.maxCapacity || 0;
+                  const enr = d.enrolled || 0;
+                  const full = cap && enr >= cap;
+                %>
+                  <label class="date-chip" style="display: inline-flex; align-items: center; gap: 5px; border: 1px solid #d8d5cc; border-radius: 6px; padding: 4px 8px; font-size: 0.8rem; cursor: pointer; background: <%= checked.has(d.date) ? 'var(--sand)' : 'var(--white)' %>;">
+                    <input type="checkbox" name="child_dates_<%= i %>" value="<%= d.date %>" data-child="<%= i %>"
+                      <%= checked.has(d.date) ? 'checked' : '' %>
+                      onchange="this.closest('label').style.background = this.checked ? 'var(--sand)' : 'var(--white)';">
+                    <span><%= dt.toLocaleDateString('en-US', { weekday: 'short' }) %> <%= parseInt(d.date.split('-')[2]) %></span>
+                    <small style="color: <%= full ? 'var(--red)' : 'var(--text-light)' %>;"><%= enr %>/<%= cap %></small>
+                  </label>
+                <% }) %>
+              </div>
+            <% }) %>
+          </div>
+        <% }) %>
+
+        <div style="display: flex; gap: 12px; margin-top: 8px;">
+          <button type="submit" class="btn btn-green btn-sm">Save Dates</button>
+          <a href="/admin/enrollments?tab=registrations" class="btn btn-outline btn-sm">Cancel</a>
+        </div>
+      </form>
+
+      <script>
+      function setChild(i, on) {
+        document.querySelectorAll('input[data-child="' + i + '"]').forEach(cb => {
+          cb.checked = on;
+          cb.closest('label').style.background = on ? 'var(--sand)' : 'var(--white)';
+        });
+      }
+      </script>
+    <% } %>
+  </main>
+</div>
+
+<%- include('../layout_foot') %>

@@ -69,25 +69,31 @@
                 <td><%= e.parentEmail %></td>
                 <td><%= e.parentPhone %></td>
                 <td style="font-size: 0.8rem;">
-                  <%
-                    const dates = (e.selectedDates || []).sort();
-                    let lastYM = '';
-                    dates.forEach(d => {
-                      const [y, m, day] = d.split('-');
-                      const ym = y + '-' + m;
-                      const monthName = new Date(d + 'T00:00:00').toLocaleDateString('en-US', { month: 'short' });
-                      if (ym !== lastYM) {
-                        if (lastYM) { %><br><% }
-                        %><strong><%= monthName %> <%= y %>:</strong> <%
-                        lastYM = ym;
+                  <% const multiChild = (e.children || []).length > 1; %>
+                  <% (e.children || []).forEach(c => {
+                    const cd = (c.dates || []).slice().sort();
+                    const groups = [];
+                    let curKey = '', cur = null;
+                    cd.forEach(d => {
+                      const key = d.slice(0, 7);
+                      if (key !== curKey) {
+                        cur = { label: new Date(d + 'T00:00:00').toLocaleDateString('en-US', { month: 'short' }), days: [] };
+                        groups.push(cur); curKey = key;
                       }
-                      %><span style="white-space: nowrap;"><%= parseInt(day) %><form method="POST" action="/admin/enrollments/remove-date" style="display:inline;"><input type="hidden" name="registration_id" value="<%= e.id %>"><input type="hidden" name="date" value="<%= d %>"><button type="submit" style="background:none;border:none;color:var(--red);cursor:pointer;font-size:0.7rem;padding:0 2px;" title="Remove this date" onclick="return confirm('Remove <%= d %> from this registration?')">&times;</button></form></span> <%
+                      cur.days.push(parseInt(d.split('-')[2]));
                     });
                   %>
+                    <div style="margin-bottom: 2px;">
+                      <% if (multiChild) { %><span style="color: var(--green-dark); font-weight: 600;"><%= c.name || 'Child' %>:</span> <% } %>
+                      <% if (cd.length === 0) { %><span style="color: var(--text-light);">—</span>
+                      <% } else { groups.forEach((g, gi) => { %><strong><%= g.label %></strong> <%= g.days.join(', ') %><%= gi < groups.length - 1 ? '; ' : '' %><% }) } %>
+                    </div>
+                  <% }) %>
                 </td>
                 <td style="font-size: 0.8rem;"><%= e.createdAt %></td>
-                <td>
-                  <form method="POST" action="/admin/enrollments/delete" style="display:inline;">
+                <td style="white-space: nowrap;">
+                  <a href="/admin/enrollments/<%= e.id %>/edit-dates" class="btn btn-outline btn-sm">Edit Dates</a>
+                  <form method="POST" action="/admin/enrollments/delete" style="display:inline; margin-left: 4px;">
                     <input type="hidden" name="registration_id" value="<%= e.id %>">
                     <button type="submit" class="btn btn-danger btn-sm"
                       onclick="return confirm('Delete entire registration for <%= e.parentName %>?')">Delete</button>

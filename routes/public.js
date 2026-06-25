@@ -101,9 +101,12 @@ router.post('/register', publicFormLimiter, asyncHandler(async (req, res) => {
   const programDates = await db.getDatesByProgram(program_id);
   const dateCapMap = {};
   programDates.forEach(d => { dateCapMap[d.date] = { capacity: d.maxCapacity || 12, enrolled: d.enrolled || 0 }; });
+  // Capacity counts children (heads): this family adds one head per child to
+  // each selected date, so a date is full when there isn't room for all of them.
+  const numChildren = children.length;
   const fullDates = dateList.filter(d => {
     const info = dateCapMap[d];
-    return info && info.enrolled >= info.capacity;
+    return info && (info.enrolled + numChildren) > info.capacity;
   });
   if (fullDates.length > 0) {
     const fullStr = fullDates.map(d => {
@@ -226,6 +229,7 @@ ${site.name} Team`;
         dob: fc.participants.fields.dob.show ? (c.dob || null) : null,
         healthcareProvider: fc.participants.fields.healthcare.show ? (c.healthcare_provider || null) : null,
         allergies: fc.participants.fields.allergies.show ? (c.allergies || null) : null,
+        dates: dateList, // public form is family-level: every child gets the family dates
       })),
       selectedDates: dateList,
       customResponses,

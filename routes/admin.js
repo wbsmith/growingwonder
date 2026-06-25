@@ -317,6 +317,24 @@ router.get('/enrollments', requireAuth, asyncHandler(async (req, res) => {
   const programs = await db.getAllPrograms();
   const enrollments = await db.getEnrollments(programId);
 
+  // The summary and rosters views are single-program and would otherwise render
+  // blank until a program is picked. When none is selected, default to the
+  // program with the most active registrations (any attendance date >= today),
+  // tie-broken by total registrations then program order — never a blank page.
+  let effectiveProgramId = programId;
+  if (!effectiveProgramId && (tab === 'summary' || tab === 'rosters') && programs.length > 0) {
+    const today = new Date().toISOString().slice(0, 10);
+    const counts = await db.getRegistrationCountsByProgram(today);
+    let best = null;
+    for (const p of programs) {
+      const c = counts[p.id] || { active: 0, total: 0 };
+      if (!best || c.active > best.c.active || (c.active === best.c.active && c.total > best.c.total)) {
+        best = { id: p.id, c };
+      }
+    }
+    effectiveProgramId = best ? best.id : null;
+  }
+
   // For payments tab: attach confirmation dates
   if (tab === 'payments') {
     const emails = await db.getAllEmails();
@@ -333,8 +351,8 @@ router.get('/enrollments', requireAuth, asyncHandler(async (req, res) => {
 
   // For rosters tab: build weeks
   let weeks = [];
-  if (tab === 'rosters' && programId) {
-    const allDates = await db.getDatesByProgram(programId);
+  if (tab === 'rosters' && effectiveProgramId) {
+    const allDates = await db.getDatesByProgram(effectiveProgramId);
     const weekSet = new Map();
     for (const d of allDates) {
       const dt = new Date(d.date + 'T00:00:00');
@@ -353,9 +371,9 @@ router.get('/enrollments', requireAuth, asyncHandler(async (req, res) => {
 
   // For summary tab: build weekly calendar with counts
   let summaryWeeks = [];
-  if (tab === 'summary' && programId) {
-    const allDates = await db.getDatesByProgram(programId);
-    const regs = await db.getRegistrationsByProgram(programId);
+  if (tab === 'summary' && effectiveProgramId) {
+    const allDates = await db.getDatesByProgram(effectiveProgramId);
+    const regs = await db.getRegistrationsByProgram(effectiveProgramId);
     const dateSet = new Set(allDates.map(d => d.date));
     const dateCapacity = {};
     allDates.forEach(d => { dateCapacity[d.date] = d.maxCapacity || 12; });
@@ -389,13 +407,15 @@ router.get('/enrollments', requireAuth, asyncHandler(async (req, res) => {
         const dateStr = dayDate.toISOString().slice(0, 10);
         const isAvailable = dateSet.has(dateStr);
 
-        // Count enrollments for this date
+        // Count enrolled children (heads) for this date — only children whose
+        // own dates include it, so a child enrolled Mon–Wed doesn't inflate Thu.
         let count = 0;
         const enrolledParents = new Set();
         if (isAvailable) {
           for (const r of regs) {
-            if ((r.selectedDates || []).includes(dateStr)) {
-              count += (r.children || []).length; // total person-count
+            const attending = (r.children || []).filter(c => (c.dates || r.selectedDates || []).includes(dateStr)).length;
+            if (attending > 0) {
+              count += attending;
               enrolledParents.add(r.id);
             }
           }
@@ -413,17 +433,16 @@ router.get('/enrollments', requireAuth, asyncHandler(async (req, res) => {
         });
       }
 
-      // Week totals
+      // Week totals — child-days (each child counted once per day they attend).
       let totalPersons = 0, distinctFamiliesWeek = new Set();
       for (const r of regs) {
         const regDates = r.selectedDates || [];
         const hasDateThisWeek = days.some(d => d.available && regDates.includes(d.date));
         if (hasDateThisWeek) {
           distinctFamiliesWeek.add(r.id);
-          // Count total person-days
           for (const d of days) {
-            if (d.available && regDates.includes(d.date)) {
-              totalPersons += (r.children || []).length;
+            if (d.available) {
+              totalPersons += (r.children || []).filter(c => (c.dates || regDates).includes(d.date)).length;
             }
           }
         }
@@ -442,7 +461,7 @@ router.get('/enrollments', requireAuth, asyncHandler(async (req, res) => {
     }
   }
 
-  res.render('admin/enrollments', { tab, enrollments, programs, selectedProgramId: programId, weeks, summaryWeeks });
+  res.render('admin/enrollments', { tab, enrollments, programs, selectedProgramId: effectiveProgramId, weeks, summaryWeeks });
 }));
 
 router.post('/enrollments/merge', requireAuth, asyncHandler(async (req, res) => {
@@ -483,11 +502,40 @@ router.post('/enrollments/merge', requireAuth, asyncHandler(async (req, res) => 
   res.redirect(303, redirectUrl);
 }));
 
-router.post('/enrollments/remove-date', requireAuth, asyncHandler(async (req, res) => {
-  const { registration_id, date } = req.body;
-  await db.removeDateFromRegistration(registration_id, date);
-  req.session.flash = { type: 'success', msg: `Removed ${date} from registration.` };
-  res.redirect(303, req.get('Referer') || '/admin/enrollments?tab=registrations');
+// Per-child date editor. Replaces the old single-date remove control — admins
+// add, remove, or move days for each child independently.
+router.get('/enrollments/:id/edit-dates', requireAuth, asyncHandler(async (req, res) => {
+  const reg = await db.getRegistration(req.params.id);
+  if (!reg) {
+    req.session.flash = { type: 'error', msg: 'Registration not found.' };
+    return res.redirect(303, '/admin/enrollments?tab=registrations');
+  }
+  const program = reg.programId ? await db.getProgram(reg.programId) : null;
+  const dates = (reg.programId && reg.programId !== 'imported')
+    ? await db.getDatesByProgram(reg.programId) : [];
+  res.render('admin/edit_dates', { reg, program, dates });
+}));
+
+router.post('/enrollments/edit-dates', requireAuth, asyncHandler(async (req, res) => {
+  const { registration_id } = req.body;
+  const reg = await db.getRegistration(registration_id);
+  if (!reg) {
+    req.session.flash = { type: 'error', msg: 'Registration not found.' };
+    return res.redirect(303, '/admin/enrollments?tab=registrations');
+  }
+  // Checkboxes are named child_dates_<i> (one group per child). Build an
+  // index-aligned array; a child with nothing checked yields [] (replace).
+  const childDates = (reg.children || []).map((_, i) => [].concat(req.body['child_dates_' + i] || []));
+  const result = await db.updateRegistrationDates(registration_id, childDates);
+  if (!result.ok) {
+    req.session.flash = { type: 'error', msg: result.error || 'Could not update dates.' };
+  } else if (result.overCapacity && result.overCapacity.length > 0) {
+    const list = result.overCapacity.map(o => `${o.date} (${o.enrolled}/${o.capacity})`).join(', ');
+    req.session.flash = { type: 'success', msg: `Dates updated — note: now over capacity on ${list}.` };
+  } else {
+    req.session.flash = { type: 'success', msg: 'Dates updated.' };
+  }
+  res.redirect(303, '/admin/enrollments?tab=registrations');
 }));
 
 router.post('/enrollments/delete', requireAuth, asyncHandler(async (req, res) => {
@@ -512,13 +560,15 @@ router.get('/enrollments/csv', requireAuth, asyncHandler(async (req, res) => {
   const sentByReg = {};
   emails.forEach(e => { if (e.status === 'sent' && e.registrationId) sentByReg[e.registrationId] = e.sentAt; });
 
-  const header = 'Parent Name,Email,Phone,Children,DOBs,Program,Dates,Confirmation Date,Payment Date,Payment Amount,Notes';
+  const header = 'Parent Name,Email,Phone,Children,DOBs,Program,Dates,Child Dates,Confirmation Date,Payment Date,Payment Amount,Notes';
   const csvRows = enrollments.map(r => {
     const childNames = (r.children || []).map(c => c.name).join('; ');
     const childDobs = (r.children || []).map(c => c.dob).join('; ');
     const dates = (r.selectedDates || []).sort().join('; ');
+    const childDates = (r.children || [])
+      .map(c => `${c.name || '?'}: ${(c.dates || []).slice().sort().join('|')}`).join('; ');
     return [csvEsc(r.parentName), csvEsc(r.parentEmail), csvEsc(r.parentPhone), csvEsc(childNames), csvEsc(childDobs),
-      csvEsc(r.programName), csvEsc(dates), csvEsc(sentByReg[r.id] || ''), csvEsc(r.paymentDate || ''),
+      csvEsc(r.programName), csvEsc(dates), csvEsc(childDates), csvEsc(sentByReg[r.id] || ''), csvEsc(r.paymentDate || ''),
       r.paymentAmount != null ? r.paymentAmount.toFixed(2) : '', csvEsc(r.paymentNotes || '')].join(',');
   });
   const filename = programId ? `status-${programId}-${new Date().toISOString().slice(0,10)}.csv` : `status-all-${new Date().toISOString().slice(0,10)}.csv`;
@@ -667,34 +717,35 @@ router.get('/roster', requireAuth, asyncHandler(async (req, res) => {
   for (const day of days) {
     const childrenForDay = [];
     for (const reg of registrations) {
-      if ((reg.selectedDates || []).includes(day)) {
-        // A registration may have no participant rows (e.g. CIT where applicant info
-        // lives in custom responses). Fall back to one synthetic row per registration
-        // so the participant appears on the roster regardless.
-        const rows = (reg.children && reg.children.length > 0) ? reg.children : [{ name: null, dob: null, allergies: null }];
-        for (const child of rows) {
-          let age = null;
-          if (child.dob) {
-            const dob = new Date(child.dob + 'T00:00:00');
-            if (!isNaN(dob)) {
-              const dayDate = new Date(day + 'T00:00:00');
-              age = dayDate.getFullYear() - dob.getFullYear();
-              const md = dayDate.getMonth() - dob.getMonth();
-              if (md < 0 || (md === 0 && dayDate.getDate() < dob.getDate())) age--;
-            }
+      // Only list children attending THIS day (per-child dates). A registration
+      // with no participant rows (e.g. CIT where the applicant lives in custom
+      // responses) gets one synthetic row when the family touches the day.
+      const hasChildren = reg.children && reg.children.length > 0;
+      const rows = hasChildren
+        ? reg.children.filter(c => (c.dates || reg.selectedDates || []).includes(day))
+        : ((reg.selectedDates || []).includes(day) ? [{ name: null, dob: null, allergies: null }] : []);
+      for (const child of rows) {
+        let age = null;
+        if (child.dob) {
+          const dob = new Date(child.dob + 'T00:00:00');
+          if (!isNaN(dob)) {
+            const dayDate = new Date(day + 'T00:00:00');
+            age = dayDate.getFullYear() - dob.getFullYear();
+            const md = dayDate.getMonth() - dob.getMonth();
+            if (md < 0 || (md === 0 && dayDate.getDate() < dob.getDate())) age--;
           }
-          // Display name falls back to the contact name when the participant has none.
-          const displayName = child.name || reg.parentName || '(no name)';
-          childrenForDay.push({
-            name: displayName,
-            age,
-            parentName: reg.parentName || '',
-            parentPhone: reg.parentPhone || '',
-            allergies: child.allergies || '',
-            notes: reg.notes || '',
-            customResponses: (reg.customResponses || []).filter(r => r && r.value),
-          });
         }
+        // Display name falls back to the contact name when the participant has none.
+        const displayName = child.name || reg.parentName || '(no name)';
+        childrenForDay.push({
+          name: displayName,
+          age,
+          parentName: reg.parentName || '',
+          parentPhone: reg.parentPhone || '',
+          allergies: child.allergies || '',
+          notes: reg.notes || '',
+          customResponses: (reg.customResponses || []).filter(r => r && r.value),
+        });
       }
     }
     if (childrenForDay.length > 0) {
