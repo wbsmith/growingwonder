@@ -552,6 +552,27 @@ async function mergeRegistrations(ids) {
   const mergedChildren = Array.from(childMap.values());
   const allDates = new Set(deriveSelectedDates(mergedChildren));
 
+  // Precompute head-count deltas BEFORE any write, while each registration still
+  // holds its ORIGINAL children (the primary update below rewrites primary.children
+  // to the merged set). A child appearing in more than one merged registration was
+  // double-counted on shared dates at creation; merging dedups it, so counters can
+  // only stay equal or drop. Skipped for imports. Applied after the reassigns below.
+  let headDeltas = null;
+  if (primary.programId && primary.programId !== 'imported') {
+    const oldHeads = new Map();
+    for (const r of regs) {
+      for (const [d, n] of headCountsByDate(r.children, r.selectedDates)) {
+        oldHeads.set(d, (oldHeads.get(d) || 0) + n);
+      }
+    }
+    const newHeads = headCountsByDate(mergedChildren, null);
+    headDeltas = new Map();
+    for (const date of new Set([...oldHeads.keys(), ...newHeads.keys()])) {
+      const delta = (newHeads.get(date) || 0) - (oldHeads.get(date) || 0);
+      if (delta < 0) headDeltas.set(date, delta); // merge never adds heads
+    }
+  }
+
   // Merge notes
   const allNotes = [primary.notes, ...others.map(r => r.notes)].filter(Boolean);
   const mergedNotes = [...new Set(allNotes)].join('; ') || null;
@@ -629,6 +650,22 @@ async function mergeRegistrations(ids) {
         UpdateExpression: 'SET registrationId = :rid',
         ExpressionAttributeValues: { ':rid': primary.id },
       }));
+    }
+  }
+
+  // Release the double-counted heads computed above (guarded so a counter never
+  // goes negative; residual drift is reconciled by the recompute script).
+  if (headDeltas) {
+    for (const [date, delta] of headDeltas) {
+      try {
+        await client.send(new UpdateCommand({
+          TableName: T.dates,
+          Key: { programId: primary.programId, date },
+          UpdateExpression: 'ADD enrolled :d',
+          ConditionExpression: 'attribute_exists(enrolled) AND enrolled >= :abs',
+          ExpressionAttributeValues: { ':d': delta, ':abs': -delta },
+        }));
+      } catch (e) { /* counter drift — reconciled by the recompute script */ }
     }
   }
 

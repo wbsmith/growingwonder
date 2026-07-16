@@ -1,12 +1,14 @@
 # World in Wonder — Current State
 
-_Last updated: 2026-07-15. Branch `main`, in sync with `origin/main` at the previous tip `4e67c67`; this commit adds the registration-form fixes below (not yet deployed). Per-child dates **deployed** (Amplify job 103) and **migrated** on prod._
+_Last updated: 2026-07-15. Branch `main`. Public registration fix **deployed** (Amplify job 106, commit `4b1107d`). This commit adds the admin **Registrations-page** fixes below (delete/merge) — **not yet deployed**. Per-child dates deployed (job 103) and migrated on prod._
 
-> **Heads-up (2026-07-15):** public registration was **broken since `fb5c585`
-> (2026-06-24)** — the head-count capacity guard used arithmetic inside a
-> DynamoDB `ConditionExpression`, which is invalid, so every registration to a
-> dated program failed with a generic "Something went wrong." Fixed this commit
-> (see Recent changes). **Deploy ASAP.**
+> **History (2026-07-15):** two rounds of fixes today. (1) Public registration
+> was **broken since `fb5c585` (2026-06-24)** — head-count capacity guard used
+> arithmetic in a DynamoDB `ConditionExpression` (invalid) → generic "Something
+> went wrong." Fixed + deployed (job 106). (2) Admin Registrations tab: per-row
+> **Delete** was a `<form>` nested inside the merge `<form>` (invalid HTML), so
+> it submitted the merge form instead of deleting; also **Merge** never
+> reconciled date head-counters. Both fixed this commit (see Recent changes).
 
 Registration and admin web app for a kids' nature-program business
 (worldinwonder.com). Public site for browsing programs and registering; a
@@ -231,7 +233,22 @@ placeholders in a local `.env` are unused.)
 
 ## Recent changes
 
-- **(2026-07-15) registration-form fixes** (this commit):
+- **(2026-07-15) admin Registrations-tab fixes** (this commit):
+  - **Per-row Delete was broken.** Each row's Delete `<form>` was nested inside
+    the page-wide merge `<form>` — invalid HTML, so browsers drop the inner form
+    and the button submitted the *merge* form ("No registrations selected." /
+    "Select at least 2… to merge."). Unwrapped the table from the merge form and
+    bound the row checkboxes to it via `form="mergeForm"`; delete forms are now
+    standalone. Added a missing-id guard to the delete route.
+  - **Merge now reconciles head counters.** `mergeRegistrations` dedups children
+    (by name+dob) but never adjusted `wiw-dates.enrolled`, so merging true
+    duplicates left counters **inflated** (skewing the Summary head-count and the
+    public capacity gate). It now releases the double-counted heads per date
+    (guarded, non-negative). Covers Auto-Merge too (it delegates to merge).
+    **Note:** this fixes *future* merges; counters already drifted from past
+    merges need a one-time recompute (see `db/migrate_per_child_dates.js`, which
+    recomputes every `enrolled` as total heads).
+- **(2026-07-15) registration-form fixes** (deployed, Amplify job 106 / `4b1107d`):
   - **Fixed production-down bug.** `createRegistration` built a DynamoDB
     `ConditionExpression` with arithmetic (`enrolled + :n <= maxCapacity`), which
     DynamoDB rejects (arithmetic is update-expression-only). It raised
@@ -278,6 +295,14 @@ placeholders in a local `.env` are unused.)
 - **Admin default-program `today` still uses UTC** (`routes/admin.js`, the
   most-active-program pick). Cosmetic only (which program is pre-selected); not
   switched to Pacific yet for scope. The public past-date cutoff uses `lib/dates`.
+- **Deleting a registration also deletes its Inbox thread** — by design.
+  `deleteRegistration` removes *every* `wiw-email-queue` row with that
+  `registrationId` (inbound customer replies included, not just the outbound
+  confirmation). Confirmed intended behavior (2026-07-15): purge-all on delete.
+- **Historical merge counter drift** — none expected currently. The merge-counter
+  fix (2026-07-15) corrects new merges only; per prod owner no duplicate merges
+  have been run, so no `wiw-dates.enrolled` reconcile is needed. If merges were
+  ever run before that fix, recompute via `db/migrate_per_child_dates.js`.
 - `amplify.yml` echoes `MAIL_*`, so those env vars must also exist on the Amplify
   app or a build will bake empty values.
 

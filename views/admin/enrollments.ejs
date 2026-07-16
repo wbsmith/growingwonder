@@ -37,6 +37,7 @@
             </button>
             <span id="mergeCount" style="font-size: 0.8rem; color: var(--text-light);"></span>
           </div>
+        </form>
         <table class="data-table">
           <thead>
             <tr>
@@ -54,7 +55,7 @@
           <tbody>
             <% enrollments.forEach(e => { %>
               <tr>
-                <td><input type="checkbox" name="merge_ids" value="<%= e.id %>" class="merge-check" onchange="updateMergeBtn()"></td>
+                <td><input type="checkbox" name="merge_ids" value="<%= e.id %>" class="merge-check" form="mergeForm" onchange="updateMergeBtn()"></td>
                 <td><%= e.programName %></td>
                 <td>
                   <% (e.children || []).forEach(c => { %>
@@ -121,7 +122,6 @@
             <% }) %>
           </tbody>
         </table>
-        </form>
 
         <!-- Auto-merge modal -->
         <div id="autoMergeModal" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.4); z-index: 100; align-items: center; justify-content: center;">

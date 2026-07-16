@@ -540,9 +540,14 @@ router.post('/enrollments/edit-dates', requireAuth, asyncHandler(async (req, res
 
 router.post('/enrollments/delete', requireAuth, asyncHandler(async (req, res) => {
   const { registration_id } = req.body;
+  const backTo = req.get('Referer') || '/admin/enrollments?tab=registrations';
+  if (!registration_id) {
+    req.session.flash = { type: 'error', msg: 'No registration specified.' };
+    return res.redirect(303, backTo);
+  }
   await db.deleteRegistration(registration_id);
   req.session.flash = { type: 'success', msg: 'Registration deleted.' };
-  res.redirect(303, req.get('Referer') || '/admin/enrollments?tab=registrations');
+  res.redirect(303, backTo);
 }));
 
 router.post('/enrollments/payment', requireAuth, asyncHandler(async (req, res) => {
