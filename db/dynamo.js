@@ -1078,10 +1078,16 @@ async function createOutboundEmail(item) {
 // the highest IMAP uid seen for each uidvalidity, plus the set of Message-IDs
 // already stored (belt-and-suspenders dedup). Mirrors the full-scan pattern of
 // getAllEmails — fine for this table's size.
+//
+// Soft-deleted rows are INCLUDED here on purpose. They are tombstones for sync:
+// keeping their Message-IDs in the dedup set stops a re-fetch from resurrecting a
+// message the admin deleted, and keeping their uids in the high-water mark stops
+// the cursor from rewinding when the newest message is deleted (which would re-pull
+// and re-store it). Excluding them caused deleted mail to reappear on the next sync.
 async function getInboundState(mailbox) {
   const { Items } = await client.send(new ScanCommand({
     TableName: T.emails,
-    FilterExpression: '#dir = :in AND mailbox = :m AND attribute_not_exists(deletedAt)',
+    FilterExpression: '#dir = :in AND mailbox = :m',
     ExpressionAttributeNames: { '#dir': 'direction' },
     ExpressionAttributeValues: { ':in': 'in', ':m': mailbox },
   }));

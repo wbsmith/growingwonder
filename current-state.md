@@ -1,14 +1,18 @@
 # World in Wonder — Current State
 
-_Last updated: 2026-07-15. Branch `main`. Public registration fix **deployed** (Amplify job 106, commit `4b1107d`). This commit adds the admin **Registrations-page** fixes below (delete/merge) — **not yet deployed**. Per-child dates deployed (job 103) and migrated on prod._
+_Last updated: 2026-07-15. Branch `main`. Deployed: public registration fix (job 106, `4b1107d`) + admin Registrations-page fix (job 107, `c888d4c`). This commit adds **inbox IMAP-sync** fixes — **not yet deployed**. Per-child dates deployed (job 103) and migrated on prod._
 
-> **History (2026-07-15):** two rounds of fixes today. (1) Public registration
-> was **broken since `fb5c585` (2026-06-24)** — head-count capacity guard used
-> arithmetic in a DynamoDB `ConditionExpression` (invalid) → generic "Something
-> went wrong." Fixed + deployed (job 106). (2) Admin Registrations tab: per-row
-> **Delete** was a `<form>` nested inside the merge `<form>` (invalid HTML), so
-> it submitted the merge form instead of deleting; also **Merge** never
-> reconciled date head-counters. Both fixed this commit (see Recent changes).
+> **History (2026-07-15):** three rounds of fixes today. (1) Public registration
+> broken since `fb5c585` — arithmetic in a DynamoDB `ConditionExpression` →
+> generic "Something went wrong" (job 106). (2) Admin Registrations tab: per-row
+> **Delete** was a `<form>` nested in the merge `<form>` so it hit the merge
+> route; **Merge** never reconciled date head-counters (job 107). (3) Inbox sync:
+> soft-deleted inbound mail was **resurrected** on the next sync (the cursor +
+> dedup set excluded deleted rows, so the cursor rewound and re-pulled them), and
+> one unparseable/oversized message **stalled all newer mail**. Both fixed this
+> commit. Known limitation left as-is: mail older than the 90-day first-sync
+> window was never pulled and isn't being backfilled (owner: recent mail is
+> enough).
 
 Registration and admin web app for a kids' nature-program business
 (worldinwonder.com). Public site for browsing programs and registering; a
@@ -183,10 +187,20 @@ IMAP and stores messages as `direction:'in'`. Read-only against IMAP (never
 deletes/moves mail; the mailbox stays the source of truth). Sync is **on-demand**
 (Lambda has no long-lived process): `POST /admin/messages/refresh`, auto-fired on
 Inbox load plus a Refresh button. Cursor is stateless — derived from the max IMAP
-uid per uidvalidity already stored. Capped at 100 messages/mailbox/run,
-oldest-first, so a backlog catches up gap-free over repeated refreshes. Optional
+uid per uidvalidity already stored, **counting soft-deleted rows too** so the
+cursor is monotonic and deleting the newest message can't rewind it and re-pull
+deleted mail (`getInboundState`). Capped at 100 messages/mailbox/run, oldest-first,
+so a backlog catches up gap-free over repeated refreshes; the Inbox reloads once
+per batch while draining (auto-refresh at `messages.ejs`). A message that can't be
+parsed/stored is skipped and gets a `deletedAt` `status:'sync_failed'` tombstone so
+its uid advances the cursor and one bad message can't stall newer mail. Optional
 `GET /api/cron/sync-inbox?key=MAIL_CRON_KEY` exists for a scheduled trigger (not
 configured).
+
+> **Limitation:** the first sync per mailbox only pulls `MAIL_FIRST_RUN_DAYS`
+> (default 90) of history; once the cursor is set it only moves forward, so mail
+> older than that window is never pulled. Not backfilled by decision. To recover
+> it later would need a one-time full-history walk (reset cursor / ignore window).
 
 **Threading** — threads key on `registrationId` or the counterparty address.
 Inbound resolves to a registration via `In-Reply-To`/`References` matching an
@@ -233,7 +247,22 @@ placeholders in a local `.env` are unused.)
 
 ## Recent changes
 
-- **(2026-07-15) admin Registrations-tab fixes** (this commit):
+- **(2026-07-15) inbox IMAP-sync fixes** (this commit):
+  - **Deleted mail no longer resurrects.** `getInboundState` derived the sync
+    cursor and dedup set from a scan that *excluded* soft-deleted rows, so
+    deleting the newest inbound message rewound the high-water mark and dropped
+    its Message-ID from dedup — the next sync re-pulled and re-`Put` it (clearing
+    `deletedAt`). Now the scan includes soft-deleted rows as sync tombstones:
+    deletes stay deleted and the cursor is monotonic.
+  - **One bad message no longer stalls the mailbox.** The fetch loop had no
+    per-message guard, so a single unparseable/oversized message aborted the run
+    and blocked every newer (higher-uid) message behind it. Each message is now
+    wrapped; a failure logs and writes a `deletedAt` `status:'sync_failed'`
+    tombstone so the cursor advances past it. `syncAllMailboxes` returns `skipped`.
+  - Left as-is by decision: the 90-day first-run floor (no backfill) and the
+    reload-on-new-mail loop (`messages.ejs`) — it terminates once the backlog
+    drains, and the resurrection fix stops deletes from re-triggering it.
+- **(2026-07-15) admin Registrations-tab fixes** (deployed, job 107 / `c888d4c`):
   - **Per-row Delete was broken.** Each row's Delete `<form>` was nested inside
     the page-wide merge `<form>` — invalid HTML, so browsers drop the inner form
     and the button submitted the *merge* form ("No registrations selected." /
@@ -303,6 +332,12 @@ placeholders in a local `.env` are unused.)
   fix (2026-07-15) corrects new merges only; per prod owner no duplicate merges
   have been run, so no `wiw-dates.enrolled` reconcile is needed. If merges were
   ever run before that fix, recompute via `db/migrate_per_child_dates.js`.
+- **Inbox: mail older than 90 days is not mirrored** — the first-sync window
+  (`MAIL_FIRST_RUN_DAYS`) is a permanent floor and isn't backfilled (by decision).
+  Would need a one-time full-history walk to recover.
+- **Inbox reloads while draining a backlog** — auto-sync on Inbox load reloads the
+  page once per 100-message batch until caught up (`messages.ejs`). Terminates on
+  its own; not converted to a single server-side drain (deferred).
 - `amplify.yml` echoes `MAIL_*`, so those env vars must also exist on the Amplify
   app or a build will bake empty values.
 
