@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const db = require('../db/dynamo');
 const imapSync = require('../lib/imap-sync');
+const { today: todayLocal } = require('../lib/dates');
 
 const asyncHandler = fn => (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
 
@@ -23,7 +24,11 @@ router.get('/dates/:programId', asyncHandler(async (req, res) => {
   const programId = req.params.programId;
   const dates = await db.getDatesByProgram(programId);
 
-  res.json(dates.map(d => ({
+  // Never offer dates that have already passed (Pacific time).
+  const today = todayLocal();
+  const upcoming = dates.filter(d => d.date >= today);
+
+  res.json(upcoming.map(d => ({
     date: d.date,
     capacity: d.maxCapacity,
     enrolled: d.enrolled || 0,

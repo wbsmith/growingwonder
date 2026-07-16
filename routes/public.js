@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const db = require('../db/dynamo');
 const site = require('../lib/site');
+const { today: todayLocal } = require('../lib/dates');
 const { publicFormLimiter } = require('../lib/security');
 
 const asyncHandler = fn => (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
@@ -97,10 +98,18 @@ router.post('/register', publicFormLimiter, asyncHandler(async (req, res) => {
     return res.redirect(303, regUrl);
   }
 
+  // Reject already-passed dates (Pacific time) — guards against a stale calendar
+  // submitting a date that has since gone by.
+  const today = todayLocal();
+  if (dateList.some(d => d < today)) {
+    req.session.flash = { type: 'error', msg: 'One or more selected dates have already passed. Please choose upcoming dates.' };
+    return res.redirect(303, regUrl);
+  }
+
   // Capacity check
   const programDates = await db.getDatesByProgram(program_id);
   const dateCapMap = {};
-  programDates.forEach(d => { dateCapMap[d.date] = { capacity: d.maxCapacity || 12, enrolled: d.enrolled || 0 }; });
+  programDates.forEach(d => { dateCapMap[d.date] = { capacity: typeof d.maxCapacity === 'number' ? d.maxCapacity : db.DEFAULT_DATE_CAPACITY, enrolled: d.enrolled || 0 }; });
   // Capacity counts children (heads): this family adds one head per child to
   // each selected date, so a date is full when there isn't room for all of them.
   const numChildren = children.length;

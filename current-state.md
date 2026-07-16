@@ -1,6 +1,12 @@
 # World in Wonder — Current State
 
-_Last updated: 2026-06-24. Branch `main` @ `54887f5`, in sync with `origin/main`. Per-child dates **deployed** (Amplify job 103) and **migrated** on prod._
+_Last updated: 2026-07-15. Branch `main`, in sync with `origin/main` at the previous tip `4e67c67`; this commit adds the registration-form fixes below (not yet deployed). Per-child dates **deployed** (Amplify job 103) and **migrated** on prod._
+
+> **Heads-up (2026-07-15):** public registration was **broken since `fb5c585`
+> (2026-06-24)** — the head-count capacity guard used arithmetic inside a
+> DynamoDB `ConditionExpression`, which is invalid, so every registration to a
+> dated program failed with a generic "Something went wrong." Fixed this commit
+> (see Recent changes). **Deploy ASAP.**
 
 Registration and admin web app for a kids' nature-program business
 (worldinwonder.com). Public site for browsing programs and registering; a
@@ -87,6 +93,7 @@ routes/
   admin.js                all of /admin (auth, programs, enrollments, messages…)
   api.js                  /api/dates/:programId; /api/cron/sync-inbox (token-gated)
 lib/
+  dates.js                today() in America/Los_Angeles (PST/PDT) for past-date cutoffs
   auth.js, session.js     admin auth + cookie session
   security.js             helmet CSP, rate limits, session CSRF
   env.js                  .env loader (no dotenv dep)
@@ -113,7 +120,9 @@ scripts/test-imap.js      standalone mailbox connectivity check (no DB writes)
 - **wiw-programs** — programs; custom form config + custom questions per program.
 - **wiw-dates** — available dates per program; `enrolled` atomic counter vs
   `maxCapacity`. `enrolled` counts **children attending per day (heads)**, not
-  registrations/families.
+  registrations/families. When a row lacks `maxCapacity`, both the capacity
+  pre-check and the atomic guard fall back to `db.DEFAULT_DATE_CAPACITY` (12) —
+  one shared constant so they can't disagree.
 - **wiw-registrations** — one item per registration. Each child carries its own
   `dates` (`children: [{name, dob, healthcareProvider, allergies, dates}]`);
   `selectedDates` is the derived **union** of all children's dates, kept in sync
@@ -131,7 +140,10 @@ scripts/test-imap.js      standalone mailbox connectivity check (no DB writes)
 - Program pages, multi-select calendar registration (week toggle, capacity-aware),
   multi-child support, custom per-program questions, contact form (→ inquiries).
   Date selection on the public form is **family-level** (every child gets the
-  family's selected dates); per-child differences are an admin-only edit.
+  family's selected dates); per-child differences are an admin-only edit. The
+  calendar only offers **upcoming** dates — `/api/dates/:programId` filters out
+  any date before today (Pacific), and `POST /register` re-checks so a stale page
+  can't book a passed date.
 - On registration: enrolled counters bump atomically and a confirmation email is
   **queued as a draft** in `wiw-email-queue`.
 
@@ -219,6 +231,20 @@ placeholders in a local `.env` are unused.)
 
 ## Recent changes
 
+- **(2026-07-15) registration-form fixes** (this commit):
+  - **Fixed production-down bug.** `createRegistration` built a DynamoDB
+    `ConditionExpression` with arithmetic (`enrolled + :n <= maxCapacity`), which
+    DynamoDB rejects (arithmetic is update-expression-only). It raised
+    `ValidationException`, not the `ConditionalCheckFailed` the route maps to a
+    capacity message, so all registrations to dated programs failed with the
+    generic error. Now precomputes each date's ceiling client-side and compares
+    `enrolled <= :ceil`. Broken since `fb5c585` (2026-06-24).
+  - **One capacity default.** Added `db.DEFAULT_DATE_CAPACITY` (12); the public
+    pre-check and the atomic guard both use it (via a `typeof` check, so a real
+    capacity of `0` means closed, not 12) instead of disagreeing.
+  - **Hide past dates.** New `lib/dates.js` `today()` in `America/Los_Angeles`
+    (PST/PDT auto). `/api/dates/:programId` filters out passed dates; `POST
+    /register` rejects them defensively.
 - `fb5c585` — **per-child date editing + head-count capacity** (this session):
   dates moved onto each child; `enrolled` now counts heads/day not families; new
   admin per-child date editor; summary/rosters default to the most-active program.
@@ -249,6 +275,9 @@ placeholders in a local `.env` are unused.)
 - **Justine Delfino's** confirmation is an unsent **draft** (never sent).
 - **No automated tests.** Verification is manual (`scripts/test-imap.js` for
   mailbox connectivity; render/load checks during development).
+- **Admin default-program `today` still uses UTC** (`routes/admin.js`, the
+  most-active-program pick). Cosmetic only (which program is pre-selected); not
+  switched to Pacific yet for scope. The public past-date cutoff uses `lib/dates`.
 - `amplify.yml` echoes `MAIL_*`, so those env vars must also exist on the Amplify
   app or a build will bake empty values.
 

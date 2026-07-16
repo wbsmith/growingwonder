@@ -25,6 +25,11 @@ const T = {
   emails: 'wiw-email-queue',
 };
 
+// Single source of truth for a date's capacity when the item somehow lacks one
+// (older rows, partial writes). Both the public capacity pre-check and the
+// atomic registration guard use this so they can never disagree on a default.
+const DEFAULT_DATE_CAPACITY = 12;
+
 // ---- Programs ----
 
 async function getAllPrograms() {
@@ -366,17 +371,24 @@ async function createRegistration(data) {
     { Put: { TableName: T.registrations, Item: reg } },
   ];
   if (data.programId && data.programId !== 'imported') {
+    // Condition expressions can't do arithmetic (that's update-expression-only),
+    // so `enrolled + heads <= maxCapacity` is invalid and throws ValidationException.
+    // Precompute each date's ceiling (maxCapacity - heads) and compare `enrolled <= :ceil`.
+    const dateItems = await getDatesByProgram(data.programId);
+    const capByDate = {};
+    dateItems.forEach(d => { capByDate[d.date] = d.maxCapacity; });
     for (const date of selectedDates) {
       const heads = children.filter(c => (c.dates || []).includes(date)).length;
-      transactItems.push({
-        Update: {
-          TableName: T.dates,
-          Key: { programId: data.programId, date },
-          UpdateExpression: 'ADD enrolled :n',
-          ConditionExpression: 'attribute_not_exists(enrolled) OR enrolled + :n <= maxCapacity',
-          ExpressionAttributeValues: { ':n': heads },
-        },
-      });
+      const update = {
+        TableName: T.dates,
+        Key: { programId: data.programId, date },
+        UpdateExpression: 'ADD enrolled :n',
+        ExpressionAttributeValues: { ':n': heads },
+      };
+      const cap = typeof capByDate[date] === 'number' ? capByDate[date] : DEFAULT_DATE_CAPACITY;
+      update.ConditionExpression = 'attribute_not_exists(enrolled) OR enrolled <= :ceil';
+      update.ExpressionAttributeValues[':ceil'] = cap - heads;
+      transactItems.push({ Update: update });
     }
   }
 
@@ -1166,6 +1178,7 @@ module.exports = {
   getAllPrograms, getProgram, getProgramBySlug, createProgram, deleteProgram,
   updateProgramDescription, updateProgramRegDescription, updateProgramFormLabels, updateProgramFormConfig, updateProgramCustomQuestions, updateProgramHero, addProgramMedia, removeProgramMedia,
   materializeFormConfig,
+  DEFAULT_DATE_CAPACITY,
   getDatesByProgram, addDates, updateDateCapacity, removeDate,
   createRegistration, getRegistration, getEnrollments, getRegistrationsByProgram,
   countRegistrationsByProgram, deleteRegistration, mergeRegistrations, autoMergeRegistrations, updateRegistrationDates, updatePayment,
