@@ -1,18 +1,18 @@
 # World in Wonder — Current State
 
-_Last updated: 2026-07-15. Branch `main`. Deployed: public registration fix (job 106, `4b1107d`) + admin Registrations-page fix (job 107, `c888d4c`). This commit adds **inbox IMAP-sync** fixes — **not yet deployed**. Per-child dates deployed (job 103) and migrated on prod._
+_Last updated: 2026-07-29. Branch `main`. Deployed: registration fix (job 106, `4b1107d`), admin Registrations fix (job 107, `c888d4c`), inbox sync fix (job 108, `1377404`). This commit adds the **DynamoDB pagination** fix + first **test suite** — **not yet deployed**. Per-child dates deployed (job 103) and migrated on prod._
 
-> **History (2026-07-15):** three rounds of fixes today. (1) Public registration
-> broken since `fb5c585` — arithmetic in a DynamoDB `ConditionExpression` →
-> generic "Something went wrong" (job 106). (2) Admin Registrations tab: per-row
-> **Delete** was a `<form>` nested in the merge `<form>` so it hit the merge
-> route; **Merge** never reconciled date head-counters (job 107). (3) Inbox sync:
-> soft-deleted inbound mail was **resurrected** on the next sync (the cursor +
-> dedup set excluded deleted rows, so the cursor rewound and re-pulled them), and
-> one unparseable/oversized message **stalled all newer mail**. Both fixed this
-> commit. Known limitation left as-is: mail older than the 90-day first-sync
-> window was never pulled and isn't being backfilled (owner: recent mail is
-> enough).
+> **History — 2026-07-15:** (1) public registration broken since `fb5c585`
+> (arithmetic in a DynamoDB `ConditionExpression`) → job 106; (2) admin per-row
+> **Delete** was a `<form>` nested in the merge `<form>`; **Merge** never
+> reconciled head-counters → job 107; (3) inbox sync **resurrected** soft-deleted
+> mail (cursor/dedup excluded deleted rows) and one bad message **stalled** newer
+> mail → job 108.
+> **2026-07-29:** the inbox was silently **dropping ~1/3 of messages** — `getAllEmails`
+> (and ~12 other reads) issued a single un-paginated DynamoDB Scan/Query, and
+> `wiw-email-queue` had crossed the 1 MB page limit (1.48 MB / 335 rows → only 228
+> on page 1). Root cause of "Peterman not in the inbox." Fixed by paginating every
+> unbounded read; added `npm test` with a guard that fails on any bare scan/query.
 
 Registration and admin web app for a kids' nature-program business
 (worldinwonder.com). Public site for browsing programs and registering; a
@@ -33,7 +33,8 @@ email.
 - Runs on **AWS Amplify compute** (SSR Lambda, nodejs22.x) via
   `@codegenie/serverless-express`. `server.js` is the entrypoint; `app.js`
   builds the Express app.
-- No build step / framework beyond EJS. No test suite yet.
+- No build step / framework beyond EJS. Tests run on Node's built-in runner:
+  `npm test` (`node --test test/*.test.js`); see `test/pagination.test.js`.
 
 ---
 
@@ -247,7 +248,21 @@ placeholders in a local `.env` are unused.)
 
 ## Recent changes
 
-- **(2026-07-15) inbox IMAP-sync fixes** (this commit):
+- **(2026-07-29) DynamoDB pagination — full fix + tests** (this commit):
+  - **Bug:** DynamoDB Scan/Query return ≤1 MB per page; `getAllEmails` and ~12
+    other reads did a single un-paginated call. Once `wiw-email-queue` passed 1 MB
+    (1.48 MB, 335 rows), the Inbox saw only page 1 (228 rows) — the rest (incl. a
+    new registration's confirmation draft) silently vanished. That was the
+    "Peterman not showing in the inbox" report.
+  - **Fix:** added `scanAll` / `queryAll` / `paginatedCount(CommandClass, params)`
+    helpers that follow `LastEvaluatedKey`, and routed every unbounded read through
+    them (emails, registrations, inquiries, programs, dates; the unread/pending/new
+    counts). `getRegistrationCountsByProgram` already paginated.
+  - **Tests:** first suite — `npm test` (`node --test`). `test/pagination.test.js`
+    proves multi-page aggregation for scan/query/count reads and includes a
+    **static guard** that fails if any `client.send(new Scan/QueryCommand(...))`
+    appears outside an `ExclusiveStartKey` loop.
+- **(2026-07-15) inbox IMAP-sync fixes** (deployed, job 108 / `1377404`):
   - **Deleted mail no longer resurrects.** `getInboundState` derived the sync
     cursor and dedup set from a scan that *excluded* soft-deleted rows, so
     deleting the newest inbound message rewound the high-water mark and dropped
@@ -348,6 +363,7 @@ placeholders in a local `.env` are unused.)
 ```bash
 npm start              # node server.js (PORT env or random)
 npm run dev            # node --watch server.js
+npm test               # node --test test/*.test.js (pagination suite + static guards)
 node scripts/test-imap.js   # check mailbox IMAP connectivity (needs MAIL_* set; no DB writes)
 ```
 

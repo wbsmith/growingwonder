@@ -30,11 +30,53 @@ const T = {
 // atomic registration guard use this so they can never disagree on a default.
 const DEFAULT_DATE_CAPACITY = 12;
 
+// DynamoDB returns at most 1 MB of data per Scan/Query page, then a
+// LastEvaluatedKey to continue from. A single un-paginated call silently
+// truncates once a table (or a filtered/queried slice) crosses 1 MB — which is
+// how the inbox began dropping messages after wiw-email-queue passed 1 MB. These
+// helpers follow the cursor to the end so callers always see the full result
+// set; under 1 MB they make exactly one call, same as before.
+async function scanAll(params) {
+  const items = [];
+  let ExclusiveStartKey;
+  do {
+    const out = await client.send(new ScanCommand({ ...params, ExclusiveStartKey }));
+    if (out.Items) items.push(...out.Items);
+    ExclusiveStartKey = out.LastEvaluatedKey;
+  } while (ExclusiveStartKey);
+  return items;
+}
+
+async function queryAll(params) {
+  const items = [];
+  let ExclusiveStartKey;
+  do {
+    const out = await client.send(new QueryCommand({ ...params, ExclusiveStartKey }));
+    if (out.Items) items.push(...out.Items);
+    ExclusiveStartKey = out.LastEvaluatedKey;
+  } while (ExclusiveStartKey);
+  return items;
+}
+
+// Paginated `Select: 'COUNT'`. DynamoDB still caps scanned data at 1 MB/page for
+// counts, so a lone COUNT call under-reports. CommandClass is ScanCommand or
+// QueryCommand; pass the same params minus Select.
+async function paginatedCount(CommandClass, params) {
+  let count = 0;
+  let ExclusiveStartKey;
+  do {
+    const out = await client.send(new CommandClass({ ...params, Select: 'COUNT', ExclusiveStartKey }));
+    count += out.Count || 0;
+    ExclusiveStartKey = out.LastEvaluatedKey;
+  } while (ExclusiveStartKey);
+  return count;
+}
+
 // ---- Programs ----
 
 async function getAllPrograms() {
-  const { Items } = await client.send(new ScanCommand({ TableName: T.programs }));
-  const programs = (Items || []).sort((a, b) => a.id.localeCompare(b.id));
+  const Items = await scanAll({ TableName: T.programs });
+  const programs = Items.sort((a, b) => a.id.localeCompare(b.id));
   // Backfill slugs for programs created before slug support
   for (const p of programs) {
     if (!p.slug) {
@@ -257,12 +299,12 @@ async function deleteProgram(id) {
 // ---- Dates ----
 
 async function getDatesByProgram(programId) {
-  const { Items } = await client.send(new QueryCommand({
+  const Items = await queryAll({
     TableName: T.dates,
     KeyConditionExpression: 'programId = :pid',
     ExpressionAttributeValues: { ':pid': programId },
-  }));
-  return (Items || []).sort((a, b) => a.date.localeCompare(b.date));
+  });
+  return Items.sort((a, b) => a.date.localeCompare(b.date));
 }
 
 async function addDates(programId, dateList, maxCapacity) {
@@ -419,17 +461,16 @@ async function createRegistration(data) {
 async function getEnrollments(programId) {
   let items;
   if (programId) {
-    const { Items } = await client.send(new QueryCommand({
+    items = await queryAll({
       TableName: T.registrations,
       IndexName: 'programId-index',
       KeyConditionExpression: 'programId = :pid',
       ExpressionAttributeValues: { ':pid': programId },
       ScanIndexForward: false,
-    }));
-    items = Items || [];
+    });
   } else {
-    const { Items } = await client.send(new ScanCommand({ TableName: T.registrations }));
-    items = (Items || []).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+    const Items = await scanAll({ TableName: T.registrations });
+    items = Items.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   }
   // Attach program name
   const programs = await getAllPrograms();
@@ -448,25 +489,22 @@ async function getRegistration(id) {
 }
 
 async function getRegistrationsByProgram(programId) {
-  const { Items } = await client.send(new QueryCommand({
+  return queryAll({
     TableName: T.registrations,
     IndexName: 'programId-index',
     KeyConditionExpression: 'programId = :pid',
     ExpressionAttributeValues: { ':pid': programId },
     ScanIndexForward: false,
-  }));
-  return Items || [];
+  });
 }
 
 async function countRegistrationsByProgram(programId) {
-  const { Count } = await client.send(new QueryCommand({
+  return paginatedCount(QueryCommand, {
     TableName: T.registrations,
     IndexName: 'programId-index',
     KeyConditionExpression: 'programId = :pid',
     ExpressionAttributeValues: { ':pid': programId },
-    Select: 'COUNT',
-  }));
-  return Count || 0;
+  });
 }
 
 async function deleteRegistration(id) {
@@ -496,11 +534,11 @@ async function deleteRegistration(id) {
   }
 
   // Delete associated email queue entries
-  const { Items: emails } = await client.send(new ScanCommand({
+  const emails = await scanAll({
     TableName: T.emails,
     FilterExpression: 'registrationId = :rid',
     ExpressionAttributeValues: { ':rid': id },
-  }));
+  });
   if (emails && emails.length > 0) {
     for (const em of emails) {
       await client.send(new DeleteCommand({ TableName: T.emails, Key: { id: em.id } }));
@@ -591,11 +629,11 @@ async function mergeRegistrations(ids) {
 
   // Merge email queue: keep the primary's draft, reassign others, merge draft bodies
   const allRegIds = regs.map(r => r.id);
-  const { Items: allEmails } = await client.send(new ScanCommand({
+  const allEmails = await scanAll({
     TableName: T.emails,
     FilterExpression: allRegIds.map((_, i) => 'registrationId = :rid' + i).join(' OR '),
     ExpressionAttributeValues: Object.fromEntries(allRegIds.map((rid, i) => [':rid' + i, rid])),
-  }));
+  });
 
   if (allEmails && allEmails.length > 0) {
     // Find draft emails to merge into one combined draft
@@ -677,8 +715,8 @@ async function mergeRegistrations(ids) {
 
 async function autoMergeRegistrations(field) {
   // Fetch all registrations
-  const { Items } = await client.send(new ScanCommand({ TableName: T.registrations }));
-  if (!Items || Items.length < 2) return 0;
+  const Items = await scanAll({ TableName: T.registrations });
+  if (Items.length < 2) return 0;
 
   // Group by field, scoped to programId so duplicates only merge within the same program.
   const groups = {};
@@ -874,8 +912,8 @@ async function updatePayment(id, paymentDate, paymentAmount, paymentNotes) {
 // ---- Email Queue ----
 
 async function getAllEmails() {
-  const { Items } = await client.send(new ScanCommand({ TableName: T.emails }));
-  return (Items || []).filter(e => !e.deletedAt).sort((a, b) => {
+  const Items = await scanAll({ TableName: T.emails });
+  return Items.filter(e => !e.deletedAt).sort((a, b) => {
     const statusOrder = { draft: 0, sent: 1, failed: 2 };
     const sa = statusOrder[a.status] ?? 3;
     const sb = statusOrder[b.status] ?? 3;
@@ -946,16 +984,14 @@ async function markEmailFailed(id) {
 }
 
 async function countPendingEmails() {
-  const { Count } = await client.send(new QueryCommand({
+  return paginatedCount(QueryCommand, {
     TableName: T.emails,
     IndexName: 'status-index',
     KeyConditionExpression: '#st = :draft',
     FilterExpression: 'attribute_not_exists(deletedAt)',
     ExpressionAttributeNames: { '#st': 'status' },
     ExpressionAttributeValues: { ':draft': 'draft' },
-    Select: 'COUNT',
-  }));
-  return Count || 0;
+  });
 }
 
 // ---- Stats ----
@@ -991,8 +1027,8 @@ async function createInquiry(data) {
 }
 
 async function getAllInquiries() {
-  const { Items } = await client.send(new ScanCommand({ TableName: T.inquiries }));
-  return (Items || []).filter(i => !i.deletedAt).sort((a, b) => {
+  const Items = await scanAll({ TableName: T.inquiries });
+  return Items.filter(i => !i.deletedAt).sort((a, b) => {
     const statusOrder = { 'new': 0, replied: 1 };
     const sa = statusOrder[a.status] ?? 2;
     const sb = statusOrder[b.status] ?? 2;
@@ -1036,25 +1072,23 @@ async function softDeleteMessage(type, id, adminUser) {
 }
 
 async function countNewInquiries() {
-  const { Count } = await client.send(new QueryCommand({
+  return paginatedCount(QueryCommand, {
     TableName: T.inquiries,
     IndexName: 'status-index',
     KeyConditionExpression: '#st = :new',
     FilterExpression: 'attribute_not_exists(deletedAt)',
     ExpressionAttributeNames: { '#st': 'status' },
     ExpressionAttributeValues: { ':new': 'new' },
-    Select: 'COUNT',
-  }));
-  return Count || 0;
+  });
 }
 
 async function getEmailsByRegistration(registrationId) {
-  const { Items } = await client.send(new ScanCommand({
+  const Items = await scanAll({
     TableName: T.emails,
     FilterExpression: 'registrationId = :rid AND attribute_not_exists(deletedAt)',
     ExpressionAttributeValues: { ':rid': registrationId },
-  }));
-  return (Items || []).sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+  });
+  return Items.sort((a, b) => a.createdAt.localeCompare(b.createdAt));
 }
 
 // ---- Inbound mail (IMAP mirror) ----
@@ -1085,12 +1119,12 @@ async function createOutboundEmail(item) {
 // the cursor from rewinding when the newest message is deleted (which would re-pull
 // and re-store it). Excluding them caused deleted mail to reappear on the next sync.
 async function getInboundState(mailbox) {
-  const { Items } = await client.send(new ScanCommand({
+  const Items = await scanAll({
     TableName: T.emails,
     FilterExpression: '#dir = :in AND mailbox = :m',
     ExpressionAttributeNames: { '#dir': 'direction' },
     ExpressionAttributeValues: { ':in': 'in', ':m': mailbox },
-  }));
+  });
   const maxUidByValidity = {};
   const messageIds = new Set();
   for (const it of Items || []) {
@@ -1150,14 +1184,12 @@ async function markEmailRead(id) {
 }
 
 async function countUnreadInbound() {
-  const { Count } = await client.send(new ScanCommand({
+  return paginatedCount(ScanCommand, {
     TableName: T.emails,
     FilterExpression: '#dir = :in AND #read = :false AND attribute_not_exists(deletedAt)',
     ExpressionAttributeNames: { '#dir': 'direction', '#read': 'read' },
     ExpressionAttributeValues: { ':in': 'in', ':false': false },
-    Select: 'COUNT',
-  }));
-  return Count || 0;
+  });
 }
 
 // ---- Bulk email helpers ----
@@ -1192,10 +1224,10 @@ async function getEmailsByWeek(programId, weekStart) {
 }
 
 async function getAllEmails_addresses() {
-  const { Items } = await client.send(new ScanCommand({
+  const Items = await scanAll({
     TableName: T.registrations,
     ProjectionExpression: 'parentEmail',
-  }));
+  });
   const emails = new Set();
   (Items || []).forEach(r => { if (r.parentEmail) emails.add(r.parentEmail); });
   return Array.from(emails);
