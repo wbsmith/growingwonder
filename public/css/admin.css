@@ -244,7 +244,12 @@ a.stat-card:hover {
 @media (max-width: 768px) {
   .admin-layout { flex-direction: column; }
   .admin-sidebar { width: 100%; }
-  .admin-main { padding: 20px; }
+  /* Desktop keeps .admin-main as a scrolling content pane, but `overflow-x: auto`
+     also forces `overflow-y: auto`, making it a vertical scroll container. Stacked
+     under the full-width nav on mobile, that pane shrinks to a short region and
+     traps the page (scroll sticks at the top — worst on tall pages like the email
+     editor). Restore normal overflow so the whole page scrolls instead. */
+  .admin-main { padding: 20px; overflow-x: visible; }
 }
 
 /* ---------- Quill admin editor pickers ---------- */

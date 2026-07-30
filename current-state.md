@@ -1,6 +1,6 @@
 # World in Wonder — Current State
 
-_Last updated: 2026-07-29. Branch `main`. Deployed: registration fix (job 106, `4b1107d`), admin Registrations fix (job 107, `c888d4c`), inbox sync fix (job 108, `1377404`). This commit adds the **DynamoDB pagination** fix + first **test suite** — **not yet deployed**. Per-child dates deployed (job 103) and migrated on prod._
+_Last updated: 2026-07-30. Branch `main`. Deployed: registration fix (106, `4b1107d`), admin Registrations fix (107, `c888d4c`), inbox sync fix (108, `1377404`), DynamoDB pagination + first test suite (109, `98f02a5`). This commit fixes a **mobile admin scroll-lock** (CSS) — **not yet deployed**. Per-child dates deployed (job 103) and migrated on prod._
 
 > **History — 2026-07-15:** (1) public registration broken since `fb5c585`
 > (arithmetic in a DynamoDB `ConditionExpression`) → job 106; (2) admin per-row
@@ -248,7 +248,15 @@ placeholders in a local `.env` are unused.)
 
 ## Recent changes
 
-- **(2026-07-29) DynamoDB pagination — full fix + tests** (this commit):
+- **(2026-07-30) mobile admin scroll-lock** (this commit): on mobile the admin
+  pages (worst: the email editor) scrolled to the top and stuck. Cause:
+  `.admin-main { overflow-x: auto }` also forces `overflow-y: auto` (CSS spec),
+  making it a vertical scroll container; stacked under the full-width nav on
+  mobile it became a short trapped pane. Fixed with `overflow-x: visible` on
+  `.admin-main` inside the ≤768px media query so the page scrolls naturally.
+  Desktop (fixed-sidebar scrolling pane) unchanged. Known follow-up: wide tables
+  (inbox/enrollments) may now scroll the page horizontally on mobile.
+- **(2026-07-29) DynamoDB pagination — full fix + tests** (deployed, job 109 / `98f02a5`):
   - **Bug:** DynamoDB Scan/Query return ≤1 MB per page; `getAllEmails` and ~12
     other reads did a single un-paginated call. Once `wiw-email-queue` passed 1 MB
     (1.48 MB, 335 rows), the Inbox saw only page 1 (228 rows) — the rest (incl. a
