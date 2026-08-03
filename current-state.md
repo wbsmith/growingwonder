@@ -1,6 +1,6 @@
 # World in Wonder — Current State
 
-_Last updated: 2026-07-30. Branch `main`. Deployed: registration fix (106, `4b1107d`), admin Registrations fix (107, `c888d4c`), inbox sync fix (108, `1377404`), DynamoDB pagination + first test suite (109, `98f02a5`). This commit fixes a **mobile admin scroll-lock** (CSS) — **not yet deployed**. Per-child dates deployed (job 103) and migrated on prod._
+_Last updated: 2026-08-02. Branch `main`. Pushed/deployed: registration fix (106, `4b1107d`), admin Registrations fix (107, `c888d4c`), inbox sync fix (108, `1377404`), DynamoDB pagination + first tests (109, `98f02a5`), mobile scroll-lock CSS (`8097a2d`). This commit fixes the **mobile capacity save** (keyboard checkmark didn't submit) — **not yet deployed**. Per-child dates deployed (job 103) and migrated on prod._
 
 > **History — 2026-07-15:** (1) public registration broken since `fb5c585`
 > (arithmetic in a DynamoDB `ConditionExpression`) → job 106; (2) admin per-row
@@ -248,7 +248,16 @@ placeholders in a local `.env` are unused.)
 
 ## Recent changes
 
-- **(2026-07-30) mobile admin scroll-lock** (this commit): on mobile the admin
+- **(2026-08-02) mobile capacity save didn't submit** (this commit): on the
+  program Dates screen, the per-day capacity `<input type="number">` relied on the
+  in-page `✓` submit button. On iOS the numeric keypad's done/checkmark key blurs
+  the field *without* triggering implicit form submission, so tapping it silently
+  discarded the edit — an admin thought they'd set a day to 7 but it stayed at 10,
+  and 8 had already enrolled legitimately under 10 (lowering a cap never evicts
+  existing enrollees). Fixed by also submitting on the input's `change` event
+  (`onchange="this.form.submit()"`), so the keyboard checkmark now saves. No
+  enrollment-limit bug: counters verified correct against registrations.
+- **(2026-07-30) mobile admin scroll-lock** (deployed, `8097a2d`): on mobile the admin
   pages (worst: the email editor) scrolled to the top and stuck. Cause:
   `.admin-main { overflow-x: auto }` also forces `overflow-y: auto` (CSS spec),
   making it a vertical scroll container; stacked under the full-width nav on
@@ -361,6 +370,14 @@ placeholders in a local `.env` are unused.)
 - **Inbox reloads while draining a backlog** — auto-sync on Inbox load reloads the
   page once per 100-message batch until caught up (`messages.ejs`). Terminates on
   its own; not converted to a single server-side drain (deferred).
+- **No audit trail for capacity (or admin) changes.** `updateDateCapacity` does a
+  bare `SET maxCapacity` — no who/when/old-value. Made the "set to 7 but see 8"
+  report hard to reconstruct. A lightweight change log (esp. for capacity) is a
+  good targeted add.
+- **Lowering a day's capacity below its current enrollment is silent.** The route
+  flashes plain success even when `enrolled > new cap`; no eviction happens (by
+  design) and no warning is shown. Consider flagging over-capacity on save (as the
+  per-child date editor already does).
 - `amplify.yml` echoes `MAIL_*`, so those env vars must also exist on the Amplify
   app or a build will bake empty values.
 
