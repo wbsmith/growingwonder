@@ -1,6 +1,6 @@
 # World in Wonder — Current State
 
-_Last updated: 2026-08-02. Branch `main`. Pushed/deployed: registration fix (106, `4b1107d`), admin Registrations fix (107, `c888d4c`), inbox sync fix (108, `1377404`), DynamoDB pagination + first tests (109, `98f02a5`), mobile scroll-lock CSS (`8097a2d`). This commit fixes the **mobile capacity save** (keyboard checkmark didn't submit) — **not yet deployed**. Per-child dates deployed (job 103) and migrated on prod._
+_Last updated: 2026-08-29. Branch `main`. Pushed/deployed: registration fix (106, `4b1107d`), admin Registrations fix (107, `c888d4c`), inbox sync fix (108, `1377404`), DynamoDB pagination + first tests (109, `98f02a5`), mobile scroll-lock CSS (`8097a2d`), mobile capacity save (`60f6a61`). Latest work (**local only, not pushed/deployed**): **Inbox "real email client" upgrade** — no-reload live feed poll, full-text search, message-level archive/triage, and a read-only delivery-issues panel. This is the inbox-client half of a larger email overhaul; the SES outbound engine / compose / bounce webhook are a separate workstream (not built here). Per-child dates deployed (job 103) and migrated on prod._
 
 > **History — 2026-07-15:** (1) public registration broken since `fb5c585`
 > (arithmetic in a DynamoDB `ConditionExpression`) → job 106; (2) admin per-row
@@ -218,6 +218,53 @@ picks the copy back up. Falls back to SES if SMTP isn't configured.
 prominent "Respondent's answers" block (previously buried in a collapsed
 accordion).
 
+**Live inbox (no-reload) + search + triage (2026-08-29, local only).** The Inbox
+is now a live client instead of a reload loop:
+- **`buildThreads(emails, {filter, q, archived})`** (`lib/threads.js`) is the
+  single grouping/filter/search function, shared by the server render of
+  `GET /messages` and the JSON feed. Extracted verbatim from the old inline logic
+  (thread shape unchanged) and given `q` (case-insensitive Node-side substring
+  search over subject/body/bodyText/fromAddr/fromName/toAddr/parentName/childName)
+  and archive-visibility handling.
+- **Feed poll.** `GET /admin/messages/feed?filter&q` returns
+  `{serverTime, unreadInbound, newInquiries, failuresCount, threads}`. The inbox
+  polls it every 15s (paused when `document.hidden`, and immediately on tab
+  re-focus), upserting rows by `data-thread-key` (skipping unchanged rows via a
+  `data-sig`), and updates the sidebar unread pill — no full-page reload. Short
+  poll, **not SSE** (Amplify/Lambda has no durable connections). The Refresh
+  button runs the IMAP `/refresh` then patches the DOM from the feed.
+- **Shared row renderer.** `public/js/inbox-render.js` exports an isomorphic
+  `renderThreadRow(t)` — the browser loads it as a global for live rows and
+  `routes/admin.js` `require()`s the same file for the initial server render, so
+  the two can't drift. No-JS deep-links still work (`GET /messages?q=&filter=` is
+  honored server-side).
+- **Short-lived scan cache.** `db.getAllEmails()` memoizes the full
+  `wiw-email-queue` scan for ~8s (`EMAILS_CACHE_TTL_MS`, default 8000) so several
+  tabs polling every 15s don't each re-scan the ~1.5 MB table. Every email write
+  (`createInbound/Outbound`, `markEmailSent/Failed/Read`, `updateEmailDraft`,
+  attach/detach, soft-delete, archive/unarchive, and the reg create/delete/merge
+  paths) calls `invalidateEmailsCache()`, so a reply/sync/archive shows on the
+  next read — not a correctness dependency, just a scan saver.
+- **Archive / triage.** Message-level `archivedAt`/`archivedBy` mirror the
+  `deletedAt` soft-delete but are independent of it (`db.archiveMessages`/
+  `unarchiveMessages`; `POST /admin/messages/archive` + `/unarchive`, comma-joined
+  ids like delete). A thread is "archived" only when **every** message is archived,
+  so a new non-archived inbound message auto-resurfaces it. Default filters hide
+  archived threads **except** those with an unsent draft. New filter chips:
+  `archived` (archived only) and `general` (threads with no `registrationId` — the
+  unlinked info@ mail). Archive buttons on inbox rows and in the thread view.
+- **Delivery-issues panel (read-only, optional).** `tab=failures` lists rows in
+  `failed`/`bounced`/`complained`/`suppressed` via `db.getEmailsByStatuses` (the
+  `status-index` GSI, no scan); a sidebar "Delivery Issues" pill appears only when
+  the count is >0. **Empty until the outbound-delivery workstream** records those
+  statuses.
+
+**XSS (deferred, documented).** `thread_view.ejs` still renders outbound bodies
+with raw `<%- e.body %>` so admin-authored rich-text emails display — a
+clearly-commented TODO now sits above it. Outbound is admin-authored today
+(self-XSS only) and **inbound is always escaped as text**. Must be sanitized
+before any inbound HTML is ever rendered raw; no sanitiser dependency was added.
+
 ---
 
 ## Mail configuration
@@ -248,7 +295,20 @@ placeholders in a local `.env` are unused.)
 
 ## Recent changes
 
-- **(2026-08-02) mobile capacity save didn't submit** (this commit): on the
+- **(2026-08-29) Inbox live-updates + search + archive** (local only, not
+  deployed): built the inbox-client half of the email overhaul — see the
+  "Live inbox" block under *Messaging / Inbox subsystem*. New: `lib/threads.js`
+  (`buildThreads`), `public/js/inbox-render.js` (isomorphic `renderThreadRow`),
+  `GET /admin/messages/feed`, `POST /admin/messages/archive` + `/unarchive`,
+  `tab=failures` panel, a ~8s TTL cache around `getAllEmails` with write-driven
+  invalidation, and message-level `archivedAt`/`archivedBy`. New db fns:
+  `archiveMessages`, `unarchiveMessages`, `getEmailsByStatuses`,
+  `invalidateEmailsCache`. Tests: `test/threads.test.js` (grouping, `q` search,
+  archive hide/show + draft exception + auto-resurface, `general` filter, the
+  archive db fns, and the getAllEmails cache) — `npm test` green (14 tests).
+  Out of scope by design (separate workstream): SES send engine, compose/fan-out,
+  the SNS bounce webhook, and populating the failures panel.
+- **(2026-08-02) mobile capacity save didn't submit** (deployed, `60f6a61`): on the
   program Dates screen, the per-day capacity `<input type="number">` relied on the
   in-page `✓` submit button. On iOS the numeric keypad's done/checkmark key blurs
   the field *without* triggering implicit form submission, so tapping it silently
@@ -351,8 +411,16 @@ placeholders in a local `.env` are unused.)
 - **Backlog:** mailboxes hold ~143 (reg) / ~119 (info) messages; the first syncs
   pulled within a 90-day window, 100/run. Repeated Refreshes walk the rest.
 - **Justine Delfino's** confirmation is an unsent **draft** (never sent).
-- **No automated tests.** Verification is manual (`scripts/test-imap.js` for
-  mailbox connectivity; render/load checks during development).
+- **Tests are minimal.** `npm test` (Node's built-in runner) covers DynamoDB
+  pagination (`test/pagination.test.js`) and inbox thread-building / archive /
+  cache (`test/threads.test.js`). No route-level / integration tests yet; the
+  authenticated feed round-trip and IMAP paths are still verified manually
+  (`scripts/test-imap.js` for mailbox connectivity).
+- **Outbound `<%- e.body %>` in `thread_view.ejs` is raw HTML** (documented TODO):
+  fine while every outbound row is admin-authored (self-XSS only) and inbound is
+  escaped, but must be sanitized before any inbound HTML is rendered raw.
+- **Delivery-issues panel is empty** until the outbound-delivery workstream writes
+  `bounced`/`complained`/`suppressed` rows.
 - **Admin default-program `today` still uses UTC** (`routes/admin.js`, the
   most-active-program pick). Cosmetic only (which program is pre-selected); not
   switched to Pacific yet for scope. The public past-date cutoff uses `lib/dates`.
