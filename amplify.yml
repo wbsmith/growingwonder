@@ -13,6 +13,11 @@ frontend:
         - cp -r lib .amplify-hosting/compute/default/
         - cp -r routes .amplify-hosting/compute/default/
         - cp -r db .amplify-hosting/compute/default/
+        # public/ is also copied into the compute bundle (not just static) because
+        # routes/admin.js require()s public/js/inbox-render.js server-side (shared
+        # isomorphic thread-row renderer). Without this the Lambda crashes at cold
+        # start with MODULE_NOT_FOUND and every route 500s.
+        - cp -r public .amplify-hosting/compute/default/
         - cp app.js server.js package.json package-lock.json .amplify-hosting/compute/default/
         - cp deploy-manifest.json .amplify-hosting/deploy-manifest.json
         - echo "SESSION_SECRET=$SESSION_SECRET" > .amplify-hosting/compute/default/.env

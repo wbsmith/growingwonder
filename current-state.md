@@ -47,6 +47,12 @@ email.
   `npm ci --omit=dev`. **Any new env var must be added both to the Amplify
   console/app AND to `amplify.yml`'s echo list.** Env changes only reach the
   Lambda after a build (`aws amplify start-job ... --job-type RELEASE`).
+- **Compute bundle only contains what `amplify.yml` copies** (`views lib routes
+  db public app.js server.js package*.json`). Server code must not `require()` a
+  relative path outside those — `public/` is copied into compute (not just
+  static) precisely because `routes/admin.js` require()s `public/js/inbox-render.js`
+  server-side. A missing copy = `MODULE_NOT_FOUND` at Lambda cold start = every
+  route 500s (happened once, 2026-08-29). Guarded by `test/bundle-requires.test.js`.
 - **Domain/DNS:** registrar + DNS stay at **Namecheap**. An A record there points
   web traffic to Amplify/CloudFront; `worldinwonder.com` 302-redirects to
   `www.worldinwonder.com`. MX points to the cPanel mail servers. Nothing in this
