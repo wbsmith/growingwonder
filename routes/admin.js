@@ -9,6 +9,11 @@ const mailConfig = require('../lib/mail-config');
 const imapSync = require('../lib/imap-sync');
 const storage = require('../lib/storage');
 const { ulid } = require('ulid');
+const { buildThreads, FAILED_STATUSES } = require('../lib/threads');
+// Same renderer the browser uses for the live feed poll, so the initial
+// server-rendered inbox rows and the client-rendered ones can't drift.
+const { renderThreadRow } = require('../public/js/inbox-render');
+const FAILED_STATUS_LIST = Array.from(FAILED_STATUSES);
 
 const asyncHandler = fn => (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
 
@@ -766,81 +771,22 @@ router.get('/roster', requireAuth, asyncHandler(async (req, res) => {
 router.get('/messages', requireAuth, asyncHandler(async (req, res) => {
   const tab = req.query.tab || 'confirmations';
   const filter = req.query.filter || 'all';
+  const q = (req.query.q || '').trim();
   const programs = await db.getAllPrograms();
   const emails = await db.getAllEmails();
   const pendingEmails = await db.countPendingEmails();
   const unreadInbox = await db.countUnreadInbound();
   const inquiries = await db.getAllInquiries();
   const newInquiries = await db.countNewInquiries();
+  const failuresCount = emails.filter(e => FAILED_STATUSES.has(e.status)).length;
 
-  // Group inbound + outbound into conversation threads. The thread key is the
-  // registration (preferred) or the counterparty address — for inbound that's
-  // the sender, for outbound the recipient — so a person's whole exchange,
-  // sent and received, collapses into one row.
-  const dir = e => e.direction || 'out';
-  const counterpartyOf = e => ((dir(e) === 'in' ? e.fromAddr : e.toAddr) || '').toLowerCase();
-  // Outbound here is always sent from registration@; inbound carries its source.
-  const mailboxOf = e => (dir(e) === 'in' ? (e.mailbox || 'info') : 'registration');
-  const tsOf = e => e.receivedAt || e.createdAt || '';
+  // Group inbound + outbound into conversation threads (shared with the feed).
+  const threads = buildThreads(emails, { filter, q, archived: filter === 'archived' });
 
-  const threadMap = new Map();
-  for (const e of emails) {
-    const addr = counterpartyOf(e);
-    const key = e.registrationId || ('addr:' + addr);
-    if (!threadMap.has(key)) {
-      threadMap.set(key, {
-        key,
-        registrationId: e.registrationId || null,
-        addr,
-        toAddr: addr,            // display label for the row
-        childName: e.childName,
-        programName: e.programName,
-        parentName: e.parentName,
-        mailboxes: new Set(),
-        messages: [],
-      });
-    }
-    const t = threadMap.get(key);
-    t.messages.push(e);
-    t.mailboxes.add(mailboxOf(e));
-    // Backfill display fields from whichever message carries them.
-    if (!t.childName && e.childName) t.childName = e.childName;
-    if (!t.programName && e.programName) t.programName = e.programName;
-    if (!t.parentName) t.parentName = e.parentName || e.fromName;
-  }
-
-  let threads = Array.from(threadMap.values()).map(t => {
-    const sorted = t.messages.sort((a, b) => tsOf(a).localeCompare(tsOf(b)));
-    const latest = sorted[sorted.length - 1];
-    const hasDraft = sorted.some(m => m.status === 'draft');
-    const hasFailed = sorted.some(m => m.status === 'failed');
-    const unreadCount = sorted.filter(m => dir(m) === 'in' && !m.read).length;
-    return {
-      ...t,
-      mailboxes: Array.from(t.mailboxes),
-      isRegistration: !!t.registrationId,
-      subject: sorted[0].subject,
-      messageCount: sorted.length,
-      latestDate: tsOf(latest),
-      latestStatus: hasDraft ? 'draft' : hasFailed ? 'failed' : latest.status,
-      latestDirection: dir(latest),
-      latestSnippet: (dir(latest) === 'in' ? (latest.bodyText || '') : (latest.body || '')).replace(/<[^>]*>/g, '').slice(0, 120),
-      unreadCount,
-      latestId: latest.id,
-      firstId: sorted[0].id,
-    };
-  });
-
-  // Filter chips: mailbox (registration/info), unread, or the "confirmations"
-  // label (threads that originated from a registration).
-  if (filter === 'registration') threads = threads.filter(t => t.mailboxes.includes('registration'));
-  else if (filter === 'info') threads = threads.filter(t => t.mailboxes.includes('info'));
-  else if (filter === 'unread') threads = threads.filter(t => t.unreadCount > 0);
-  else if (filter === 'confirmations') threads = threads.filter(t => t.isRegistration);
-
-  // Sort: newest activity first, like a normal inbox. Unread is surfaced via
-  // bold row styling and drafts via a badge, so nothing is pinned to the top.
-  threads.sort((a, b) => (b.latestDate || '').localeCompare(a.latestDate || ''));
+  // Failures panel (read-only). Populated once the outbound-delivery tracking
+  // workstream starts recording bounced/complained/suppressed rows; empty today.
+  let failures = [];
+  if (tab === 'failures') failures = await db.getEmailsByStatuses(FAILED_STATUS_LIST);
 
   // For bulk tab: build week data
   const programWeeks = {};
@@ -861,9 +807,25 @@ router.get('/messages', requireAuth, asyncHandler(async (req, res) => {
   }
 
   res.render('admin/messages', {
-    tab, filter, threads, pendingEmails, unreadInbox, inquiries, newInquiries,
+    tab, filter, q, threads, pendingEmails, unreadInbox, inquiries, newInquiries,
     programs, programWeeks, mailEnabled: mailConfig.isConfigured(),
+    failures, failuresCount, renderThreadRow,
   });
+}));
+
+// Live inbox feed for the no-reload poll. Returns the same thread objects the
+// server renders (via buildThreads, so filter/search match exactly) plus the
+// counts the sidebar/toolbar show. GET → no CSRF needed; reads the short-lived
+// getAllEmails cache so a 15s poll from several tabs is cheap.
+router.get('/messages/feed', requireAuth, asyncHandler(async (req, res) => {
+  const filter = req.query.filter || 'all';
+  const q = (req.query.q || '').trim();
+  const emails = await db.getAllEmails();
+  const threads = buildThreads(emails, { filter, q, archived: filter === 'archived' });
+  const unreadInbound = emails.filter(e => (e.direction || 'out') === 'in' && !e.read).length;
+  const failuresCount = emails.filter(e => FAILED_STATUSES.has(e.status)).length;
+  const newInquiries = await db.countNewInquiries();
+  res.json({ serverTime: new Date().toISOString(), unreadInbound, newInquiries, failuresCount, threads });
 }));
 
 // Pull new inbound mail from the Namecheap mailboxes on demand (called by the
@@ -893,6 +855,25 @@ router.post('/messages/delete', requireAuth, asyncHandler(async (req, res) => {
   const tab = type === 'email' ? 'confirmations' : 'inquiries';
   req.session.flash = { type: 'success', msg: ids.length > 1 ? `${ids.length} messages deleted.` : 'Deleted.' };
   res.redirect(303, '/admin/messages?tab=' + tab);
+}));
+
+// Archive / unarchive a thread's messages (comma-joined ids, like delete).
+// Archive is independent of soft-delete: it hides a thread from the default
+// inbox until a new inbound message resurfaces it (see lib/threads).
+function parseIds(body) {
+  return (body.item_ids || body.item_id || '').split(',').map(s => s.trim()).filter(Boolean);
+}
+router.post('/messages/archive', requireAuth, asyncHandler(async (req, res) => {
+  const ids = parseIds(req.body);
+  if (ids.length) await db.archiveMessages(ids, process.env.ADMIN_USER || 'admin');
+  req.session.flash = { type: 'success', msg: ids.length > 1 ? `${ids.length} messages archived.` : 'Archived.' };
+  res.redirect(303, req.body.return_to || req.get('Referer') || '/admin/messages?tab=confirmations');
+}));
+router.post('/messages/unarchive', requireAuth, asyncHandler(async (req, res) => {
+  const ids = parseIds(req.body);
+  if (ids.length) await db.unarchiveMessages(ids);
+  req.session.flash = { type: 'success', msg: ids.length > 1 ? `${ids.length} messages unarchived.` : 'Unarchived.' };
+  res.redirect(303, req.body.return_to || req.get('Referer') || '/admin/messages?tab=confirmations');
 }));
 
 // Render a conversation (inbound + outbound interleaved), marking any unread
