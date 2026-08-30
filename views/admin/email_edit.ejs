@@ -12,6 +12,7 @@
       <strong>Program:</strong> <%= email.programName %><br>
       <strong>Status:</strong> <span class="badge badge-<%= email.status %>"><%= email.status %></span>
       <% if (email.sentAt) { %><br><strong>Sent:</strong> <%= email.sentAt %><% } %>
+      <% if (email.failureReason) { %><br><strong style="color:#b00;">Failure:</strong> <span style="color:#b00;"><%= email.failureReason %></span><% } %>
     </div>
 
     <% if (registration) { %>
@@ -96,8 +97,8 @@
         <div style="display: flex; gap: 12px;">
           <button type="submit" class="btn btn-outline">Save Draft</button>
           <button type="submit" formaction="/admin/messages/emails/<%= email.id %>/send" class="btn btn-green"
-            onclick="return confirm('Send this email to <%= email.toAddr %>?')">
-            Send Email
+            onclick="return confirm('<%= email.status === 'failed' ? 'Resend' : 'Send' %> this email to <%= email.toAddr %>?')">
+            <%= email.status === 'failed' ? 'Resend' : 'Send Email' %>
           </button>
           <a href="/admin/messages?tab=confirmations" class="btn btn-outline" style="margin-left: auto;">Back</a>
         </div>

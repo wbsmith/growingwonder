@@ -4,6 +4,7 @@ const db = require('../db/dynamo');
 const { validateAdmin, requireAuth } = require('../lib/auth');
 const { loginLimiter, csrfMiddleware } = require('../lib/security');
 const mailer = require('../lib/mailer');
+const outbound = require('../lib/outbound');
 const smtp = require('../lib/smtp');
 const mailConfig = require('../lib/mail-config');
 const imapSync = require('../lib/imap-sync');
@@ -1056,7 +1057,9 @@ router.post('/messages/emails/:id/send', requireAuth, asyncHandler(async (req, r
   }
 
   const email = await db.getEmail(req.params.id);
-  if (!email || email.status !== 'draft') {
+  // Allow a first send from 'draft' or a Resend from 'failed'; anything else is
+  // already sent / terminal.
+  if (!email || (email.status !== 'draft' && email.status !== 'failed')) {
     req.session.flash = { type: 'error', msg: 'Email not found or already sent.' };
     return res.redirect('/admin/messages?tab=confirmations');
   }
@@ -1064,33 +1067,10 @@ router.post('/messages/emails/:id/send', requireAuth, asyncHandler(async (req, r
     req.session.flash = { type: 'error', msg: 'SES not configured.' };
     return res.redirect('/admin/messages/emails/' + req.params.id + '/edit');
   }
-  try {
-    // Build attachments from S3
-    const attachments = [];
-    if (email.attachments && email.attachments.length > 0) {
-      const { GetObjectCommand } = require('@aws-sdk/client-s3');
-      const { S3Client } = require('@aws-sdk/client-s3');
-      const s3Config = { region: process.env.WIW_AWS_REGION || process.env.AWS_REGION || 'us-west-1' };
-      if (process.env.WIW_ACCESS_KEY_ID) {
-        s3Config.credentials = { accessKeyId: process.env.WIW_ACCESS_KEY_ID, secretAccessKey: process.env.WIW_SECRET_ACCESS_KEY };
-      }
-      const s3 = new S3Client(s3Config);
-      const bucket = process.env.WIW_S3_BUCKET || 'wiw-media-assets';
-      for (const att of email.attachments) {
-        const obj = await s3.send(new GetObjectCommand({ Bucket: bucket, Key: att.key }));
-        const chunks = [];
-        for await (const chunk of obj.Body) chunks.push(chunk);
-        attachments.push({ filename: att.filename, content: Buffer.concat(chunks), contentType: att.contentType });
-      }
-    }
-    const sent = await mailer.send(email.toAddr, email.subject, email.body, 'registration', attachments);
-    await db.markEmailSent(email.id, sent && sent.messageId);
-    req.session.flash = { type: 'success', msg: `Email sent to ${email.toAddr}.` };
-  } catch (err) {
-    console.error('SES error:', err);
-    await db.markEmailFailed(email.id);
-    req.session.flash = { type: 'error', msg: 'Send failed: ' + err.message };
-  }
+  const r = await outbound.sendConfirmation(email); // marks sent/failed internally
+  req.session.flash = r.ok
+    ? { type: 'success', msg: `Email sent to ${email.toAddr}.` }
+    : { type: 'error', msg: 'Send failed: ' + r.error };
   res.redirect('/admin/messages?tab=confirmations');
 }));
 
@@ -1114,34 +1094,28 @@ router.post('/messages/bulk/recipients', requireAuth, asyncHandler(async (req, r
   res.json({ emails, count: emails.length });
 }));
 
+// Repurposed to the privacy-preserving individual fan-out (lib/outbound.sendCompose):
+// each recipient gets its own private message + tracked row, never a BCC blast.
+// (The dedicated Compose UI is a follow-up; this keeps the existing Bulk view working.)
 router.post('/messages/bulk/send', requireAuth, asyncHandler(async (req, res) => {
   const { subject, body, recipients, attachment_keys, body_format } = req.body;
   if (!subject || !body || !recipients) { req.session.flash = { type: 'error', msg: 'Subject, body, and recipients are required.' }; return res.redirect(303, '/admin/messages?tab=bulk'); }
   const emailList = recipients.split(',').map(e => e.trim()).filter(Boolean);
   if (emailList.length === 0) { req.session.flash = { type: 'error', msg: 'No recipients.' }; return res.redirect(303, '/admin/messages?tab=bulk'); }
   if (!mailer.isConfigured()) { req.session.flash = { type: 'error', msg: 'SES not configured.' }; return res.redirect(303, '/admin/messages?tab=bulk'); }
+  let attachmentKeys = [];
+  if (attachment_keys) { try { attachmentKeys = JSON.parse(attachment_keys); } catch (e) { /* ignore malformed */ } }
   try {
-    // Fetch attachments from S3
-    const attachments = [];
-    if (attachment_keys) {
-      const attList = JSON.parse(attachment_keys);
-      const { S3Client, GetObjectCommand } = require('@aws-sdk/client-s3');
-      const s3Config = { region: process.env.WIW_AWS_REGION || process.env.AWS_REGION || 'us-west-1' };
-      if (process.env.WIW_ACCESS_KEY_ID) {
-        s3Config.credentials = { accessKeyId: process.env.WIW_ACCESS_KEY_ID, secretAccessKey: process.env.WIW_SECRET_ACCESS_KEY };
-      }
-      const s3 = new S3Client(s3Config);
-      const bucket = process.env.WIW_S3_BUCKET || 'wiw-media-assets';
-      for (const att of attList) {
-        const obj = await s3.send(new GetObjectCommand({ Bucket: bucket, Key: att.key }));
-        const chunks = []; for await (const chunk of obj.Body) chunks.push(chunk);
-        attachments.push({ filename: att.filename, content: Buffer.concat(chunks), contentType: att.contentType });
-      }
-    }
-    const count = await mailer.sendBulk(emailList, subject, body, 'info', attachments, body_format || 'text');
-    req.session.flash = { type: 'success', msg: `Email sent to ${count} recipient(s).` };
+    const r = await outbound.sendCompose({
+      recipients: emailList, subject, body,
+      format: body_format || 'text', attachmentKeys, purpose: 'info',
+    });
+    const parts = [`${r.sent} sent`];
+    if (r.suppressed) parts.push(`${r.suppressed} skipped (suppressed)`);
+    if (r.failed) parts.push(`${r.failed} failed`);
+    req.session.flash = { type: r.failed ? 'error' : 'success', msg: `Sent to ${r.total} recipient(s): ${parts.join(', ')}.` };
   } catch (err) {
-    console.error('Bulk email error:', err);
+    console.error('Compose fan-out error:', err);
     req.session.flash = { type: 'error', msg: 'Send failed: ' + err.message };
   }
   res.redirect(303, '/admin/messages?tab=bulk');

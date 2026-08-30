@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const db = require('../db/dynamo');
 const site = require('../lib/site');
+const outbound = require('../lib/outbound');
 const { today: todayLocal } = require('../lib/dates');
 const { publicFormLimiter } = require('../lib/security');
 
@@ -227,7 +228,7 @@ ${site.name} Team`;
   const recordedEmail = fc.contactEmail.show ? (parent_email || null) : null;
   const queueEmail = fc.contactEmail.show && recordedEmail; // skip queuing when no email
   try {
-    await db.createRegistration({
+    const { emailId } = await db.createRegistration({
       programId: program_id,
       parentName: fc.contactName.show ? (parent_name || null) : null,
       parentEmail: recordedEmail,
@@ -247,6 +248,18 @@ ${site.name} Team`;
       emailBody: queueEmail ? emailBody : null,
       programName,
     });
+    // Auto-send the confirmation best-effort. Gated by AUTO_SEND_CONFIRMATIONS so
+    // it can't fire before the operator has validated SES (DKIM/config set) — when
+    // off, the confirmation stays a draft for manual send from the admin. Registration
+    // ALWAYS succeeds regardless of send outcome (row is left draft/marked failed).
+    if (emailId && process.env.AUTO_SEND_CONFIRMATIONS === 'true') {
+      try {
+        const email = await db.getEmail(emailId);
+        if (email) await outbound.sendConfirmation(email); // marks sent/failed internally
+      } catch (e) {
+        console.error('Confirmation auto-send error:', e);
+      }
+    }
     const successMsg = queueEmail
       ? 'Registration complete! You will receive a confirmation email shortly.'
       : 'Registration complete!';
