@@ -24,6 +24,7 @@
     "imapflow": "^1.4.1",
     "mailparser": "^3.9.10",
     "nodemailer": "^9.0.1",
+    "sanitize-html": "^2.17.7",
     "ulid": "^2.3.0"
   },
   "overrides": {

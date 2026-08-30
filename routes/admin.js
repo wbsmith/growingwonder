@@ -10,6 +10,7 @@ const imapSync = require('../lib/imap-sync');
 const storage = require('../lib/storage');
 const { ulid } = require('ulid');
 const { buildThreads, FAILED_STATUSES } = require('../lib/threads');
+const { sanitizeMessageHtml } = require('../lib/sanitize');
 // Same renderer the browser uses for the live feed poll, so the initial
 // server-rendered inbox rows and the client-rendered ones can't drift.
 const { renderThreadRow } = require('../public/js/inbox-render');
@@ -904,6 +905,7 @@ async function renderThread(req, res, { emails, registration, registrationId }) 
     emails, registration: registration || null, registrationId: registrationId || null,
     latest, replyTo, replyAccount, inReplyTo, references,
     mailEnabled: smtp.isConfigured(),
+    cleanHtml: sanitizeMessageHtml,
   });
 }
 

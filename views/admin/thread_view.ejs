@@ -104,18 +104,11 @@
             <% if (inbound) { %>
               <div style="white-space: pre-wrap; font-size: 0.9rem;"><%= e.bodyText || '(no text content)' %></div>
             <% } else { %>
-              <%#
-                XSS NOTE (deferred, tracked): outbound bodies render as raw HTML so
-                admin-authored rich-text emails display correctly. Today every
-                outbound row is authored by the logged-in admin (confirmations,
-                replies, follow-ups) or generated server-side, so this is at most
-                self-XSS. INBOUND is always escaped as text above (never raw HTML).
-                Before any inbound HTML is ever rendered raw here, this MUST be
-                sanitized. Preferring not to add a sanitiser dependency now; if one
-                is added, DOMPurify (server-side via jsdom) or `sanitize-html` are
-                the candidates and need a security review first.
-              %>
-              <div style="white-space: pre-wrap; font-size: 0.9rem;"><%- e.body %></div>
+              <%# Outbound bodies are rich-text HTML (Quill). Rendered raw so they
+                  display correctly, but always run through sanitizeMessageHtml first
+                  (strips <script>, on* handlers, javascript: URLs, iframes, etc.) —
+                  mandatory before any inbound HTML is ever rendered here. %>
+              <div style="white-space: pre-wrap; font-size: 0.9rem;"><%- cleanHtml(e.body) %></div>
             <% } %>
             <% if (e.attachments && e.attachments.length > 0) { %>
               <div style="margin-top: 10px; padding-top: 8px; border-top: 1px solid #eee; font-size: 0.8rem;">

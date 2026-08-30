@@ -63,8 +63,9 @@
       <script src="/js/inbox-render.js"></script>
       <script>
       (function () {
-        var FILTER = <%- JSON.stringify(activeFilter) %>;
-        var Q = <%- JSON.stringify(qVal) %>;
+        <%# escape "<" so a crafted ?q=</script>... value can't break out of this script %>
+        var FILTER = <%- JSON.stringify(activeFilter).replace(/</g, '\\u003c') %>;
+        var Q = <%- JSON.stringify(qVal).replace(/</g, '\\u003c') %>;
         var MAIL_ENABLED = <%- JSON.stringify(!!mailEnabled) %>;
         var POLL_MS = 15000;
         var tbody = document.getElementById('inboxBody');

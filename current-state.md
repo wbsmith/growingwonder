@@ -259,11 +259,14 @@ is now a live client instead of a reload loop:
   the count is >0. **Empty until the outbound-delivery workstream** records those
   statuses.
 
-**XSS (deferred, documented).** `thread_view.ejs` still renders outbound bodies
-with raw `<%- e.body %>` so admin-authored rich-text emails display — a
-clearly-commented TODO now sits above it. Outbound is admin-authored today
-(self-XSS only) and **inbound is always escaped as text**. Must be sanitized
-before any inbound HTML is ever rendered raw; no sanitiser dependency was added.
+**XSS (fixed).** Outbound bodies in `thread_view.ejs` are rendered raw (to show
+rich-text HTML) but now pass through `lib/sanitize.js` `sanitizeMessageHtml()`
+(the `cleanHtml` local) — built on the `sanitize-html` dependency — which strips
+`<script>`, `on*` handlers, `javascript:` URLs, `<iframe>`, and dangerous inline
+styles while keeping Quill formatting. Inbound is still escaped as text. Also
+hardened the inbox search script injection (`messages.ejs` `?q=` was emitted into
+a `<script>` via `JSON.stringify` without escaping `<`). Covered by
+`test/sanitize.test.js`. Safe for inbound HTML rendering now too.
 
 ---
 
@@ -412,13 +415,14 @@ placeholders in a local `.env` are unused.)
   pulled within a 90-day window, 100/run. Repeated Refreshes walk the rest.
 - **Justine Delfino's** confirmation is an unsent **draft** (never sent).
 - **Tests are minimal.** `npm test` (Node's built-in runner) covers DynamoDB
-  pagination (`test/pagination.test.js`) and inbox thread-building / archive /
-  cache (`test/threads.test.js`). No route-level / integration tests yet; the
-  authenticated feed round-trip and IMAP paths are still verified manually
-  (`scripts/test-imap.js` for mailbox connectivity).
-- **Outbound `<%- e.body %>` in `thread_view.ejs` is raw HTML** (documented TODO):
-  fine while every outbound row is admin-authored (self-XSS only) and inbound is
-  escaped, but must be sanitized before any inbound HTML is rendered raw.
+  pagination (`test/pagination.test.js`), inbox thread-building / archive / cache
+  (`test/threads.test.js`), and HTML sanitization (`test/sanitize.test.js`). No
+  route-level / integration tests yet; the authenticated feed round-trip and IMAP
+  paths are still verified manually (`scripts/test-imap.js` for mailbox connectivity).
+- **npm audit: 7 pre-existing vulns** (6 high) in the mail stack's transitive deps
+  (`brace-expansion`, `html-to-text`/`deepmerge-ts`, `ip-address`, `linkify-it` via
+  `mailparser`/`imapflow`/`nodemailer`) — not from `sanitize-html`. `npm audit fix`
+  would bump majors in that stack; deferred as a separate, tested cleanup.
 - **Delivery-issues panel is empty** until the outbound-delivery workstream writes
   `bounced`/`complained`/`suppressed` rows.
 - **Admin default-program `today` still uses UTC** (`routes/admin.js`, the
