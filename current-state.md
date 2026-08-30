@@ -1,6 +1,14 @@
 # World in Wonder — Current State
 
-_Last updated: 2026-08-29. Branch `main`. Pushed/deployed: registration fix (106, `4b1107d`), admin Registrations fix (107, `c888d4c`), inbox sync fix (108, `1377404`), DynamoDB pagination + first tests (109, `98f02a5`), mobile scroll-lock CSS (`8097a2d`), mobile capacity save (`60f6a61`). Latest work (**local only, not pushed/deployed**): (1) **Inbox "real email client" upgrade** — no-reload live feed poll, full-text search, message-level archive/triage, and a read-only delivery-issues panel (on `main`); (2) **SES outbound / deliverability engine** on branch **`outbound-engine`** — every send is recorded with its SES MessageId and delivery outcome (sent/delivered/bounced/complained/failed/suppressed), Compose fans out to individual private per-recipient sends, confirmations can auto-send (env-gated), and an SNS webhook records bounces/complaints. Per-child dates deployed (job 103) and migrated on prod._
+_Last updated: 2026-08-29 (late). Branch `main`, **deployed** (through job 116). The full email overhaul is LIVE:_
+- _**SES Easy DKIM** enabled + verified — outbound now passes DKIM/SPF/DMARC and inbox-places at Gmail (was `550-5.7.1`'d before). 3 CNAMEs at Namecheap; MAIL FROM left default._
+- _**Real inbox** — no-reload live feed poll, full-text search, message-level archive/triage, read-only delivery-issues panel, sanitized outbound HTML (`lib/sanitize.js`)._
+- _**SES outbound engine** — per-send SES MessageId capture, **private per-recipient Compose fan-out** (Bulk route already uses it; no BCC), failure/bounce/complaint/suppressed states, `deliverReply` records failures, From-selection fixes (H1/H4)._
+- _**Bounce/complaint webhook** wired + **proven end-to-end** (simulator bounce marked a row in ~5s). Infra: config set `wiw-events` → SNS topic `arn:aws:sns:us-west-1:213117946893:wiw-ses-events` → `POST /api/ses-events` (key-gated + SNS-signature-verified, SSRF-guarded). Env: `SES_CONFIGURATION_SET`, `SES_SNS_TOPIC_ARN`, `SES_EVENTS_KEY` set in Amplify + echoed in `amplify.yml`._
+- _**OFF / follow-ups:** auto-send confirmations is gated by `AUTO_SEND_CONFIRMATIONS` (unset = off; confirmations still queue as drafts). Not built: the Compose UI screen (backend live), a one-off to send the 13 stranded draft confirmations._
+- _**Deploy gotcha (caused a brief prod-down):** server code must not `require()` outside the dirs `amplify.yml` copies into compute; `public/` is now copied (admin.js requires `public/js/inbox-render.js`), guarded by `test/bundle-requires.test.js`._
+
+_Per-child dates deployed (job 103) and migrated on prod._
 
 > **History — 2026-07-15:** (1) public registration broken since `fb5c585`
 > (arithmetic in a DynamoDB `ConditionExpression`) → job 106; (2) admin per-row
