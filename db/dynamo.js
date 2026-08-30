@@ -435,8 +435,9 @@ async function createRegistration(data) {
   }
 
   // Create email queue entry only if there's a subject (skip for imports)
+  let emailId = null;
   if (data.emailSubject && data.parentEmail) {
-    const emailId = ulid();
+    emailId = ulid();
     const emailItem = {
       id: emailId,
       registrationId: id,
@@ -456,7 +457,9 @@ async function createRegistration(data) {
 
   await client.send(new TransactWriteCommand({ TransactItems: transactItems }));
   invalidateEmailsCache(); // a confirmation draft row may have been written
-  return id;
+  // Return the confirmation-email row id (when one was queued) so callers can
+  // auto-send it best-effort; emailId is null for imports / no-email registrations.
+  return { id, emailId };
 }
 
 async function getEnrollments(programId) {
@@ -984,13 +987,17 @@ async function removeEmailAttachment(id, index) {
   invalidateEmailsCache();
 }
 
-async function markEmailSent(id, messageId) {
+// extra: { sesMessageId, fromAddr } — the SES-assigned MessageId is the
+// correlation key that lets the bounce/complaint webhook find this row later.
+async function markEmailSent(id, messageId, extra = {}) {
   const names = { '#st': 'status' };
   const values = { ':sent': 'sent', ':now': new Date().toISOString() };
   let expr = 'SET #st = :sent, sentAt = :now, #dir = :out';
   names['#dir'] = 'direction';
   values[':out'] = 'out';
   if (messageId) { expr += ', messageId = :mid'; values[':mid'] = messageId; }
+  if (extra.sesMessageId) { expr += ', sesMessageId = :ses'; values[':ses'] = extra.sesMessageId; }
+  if (extra.fromAddr) { expr += ', fromAddr = :fa'; values[':fa'] = extra.fromAddr; }
   await client.send(new UpdateCommand({
     TableName: T.emails,
     Key: { id },
@@ -1001,15 +1008,99 @@ async function markEmailSent(id, messageId) {
   invalidateEmailsCache();
 }
 
-async function markEmailFailed(id) {
+async function markEmailFailed(id, reason) {
+  const values = { ':failed': 'failed' };
+  let expr = 'SET #st = :failed';
+  if (reason) { expr += ', failureReason = :r'; values[':r'] = String(reason).slice(0, 1000); }
   await client.send(new UpdateCommand({
     TableName: T.emails,
     Key: { id },
-    UpdateExpression: 'SET #st = :failed',
+    UpdateExpression: expr,
     ExpressionAttributeNames: { '#st': 'status' },
-    ExpressionAttributeValues: { ':failed': 'failed' },
+    ExpressionAttributeValues: values,
   }));
   invalidateEmailsCache();
+}
+
+// ---- Delivery outcomes (driven by the SES event webhook) ----
+// Correlated to a row via sesMessageId. Bounces/complaints move the row into a
+// terminal delivery-problem status; a Delivery event only stamps deliveredAt so
+// it can never clobber a bounce/complaint that arrived first.
+
+async function markEmailBounced(id, info = {}) {
+  const names = { '#st': 'status' };
+  const values = { ':st': 'bounced', ':now': new Date().toISOString() };
+  let expr = 'SET #st = :st, eventAt = :now';
+  if (info.bounceType) { expr += ', bounceType = :bt'; values[':bt'] = info.bounceType; }
+  if (info.bounceSubType) { expr += ', bounceSubType = :bst'; values[':bst'] = info.bounceSubType; }
+  if (info.reason) { expr += ', failureReason = :r'; values[':r'] = String(info.reason).slice(0, 1000); }
+  await client.send(new UpdateCommand({
+    TableName: T.emails, Key: { id }, UpdateExpression: expr,
+    ExpressionAttributeNames: names, ExpressionAttributeValues: values,
+  }));
+  invalidateEmailsCache();
+}
+
+async function markEmailComplained(id, info = {}) {
+  const names = { '#st': 'status' };
+  const values = { ':st': 'complained', ':now': new Date().toISOString() };
+  let expr = 'SET #st = :st, eventAt = :now';
+  if (info.reason) { expr += ', failureReason = :r'; values[':r'] = String(info.reason).slice(0, 1000); }
+  await client.send(new UpdateCommand({
+    TableName: T.emails, Key: { id }, UpdateExpression: expr,
+    ExpressionAttributeNames: names, ExpressionAttributeValues: values,
+  }));
+  invalidateEmailsCache();
+}
+
+async function markEmailDelivered(id) {
+  await client.send(new UpdateCommand({
+    TableName: T.emails, Key: { id },
+    UpdateExpression: 'SET deliveredAt = :now',
+    ExpressionAttributeValues: { ':now': new Date().toISOString() },
+  }));
+  invalidateEmailsCache();
+}
+
+// Correlate an SES event back to the outbound row that produced it. Each of our
+// sends is 1:1 (single toAddr, fresh Message-ID), so sesMessageId is unique per
+// row; returns the first match or null. deletedAt rows are NOT excluded — a
+// bounce for a message the admin later deleted should still be recorded.
+async function findEmailBySesMessageId(sesMessageId) {
+  if (!sesMessageId) return null;
+  const items = await scanAll({
+    TableName: T.emails,
+    FilterExpression: 'sesMessageId = :m',
+    ExpressionAttributeValues: { ':m': sesMessageId },
+  });
+  return items[0] || null;
+}
+
+// Derived suppression list: addresses we must never send to again because they
+// permanently bounced or filed a complaint. Lowercased Set for O(1) lookup.
+// Transient/Undetermined bounces are NOT suppressed (they may be retried).
+async function getSuppressedAddresses() {
+  const items = await scanAll({ TableName: T.emails });
+  const set = new Set();
+  for (const e of items) {
+    if (!e.toAddr) continue;
+    const permanentBounce = e.status === 'bounced' && e.bounceType === 'Permanent';
+    if (e.status === 'complained' || permanentBounce) {
+      set.add(String(e.toAddr).toLowerCase());
+    }
+  }
+  return set;
+}
+
+// All rows belonging to one compose batch (fan-out group), newest first.
+async function getEmailsByBatch(batchId) {
+  if (!batchId) return [];
+  const items = await scanAll({
+    TableName: T.emails,
+    FilterExpression: 'batchId = :b',
+    ExpressionAttributeValues: { ':b': batchId },
+  });
+  return items.sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
 }
 
 // ---- Archive (message-level triage; mirrors the deletedAt soft-delete) ----
@@ -1343,7 +1434,9 @@ module.exports = {
   countRegistrationsByProgram, deleteRegistration, mergeRegistrations, autoMergeRegistrations, updateRegistrationDates, updatePayment,
   deriveSelectedDates, getRegistrationCountsByProgram,
   getAllEmails, invalidateEmailsCache, getEmail, getEmailsByRegistration, updateEmailDraft, addEmailAttachment, removeEmailAttachment,
-  markEmailSent, markEmailFailed, archiveMessages, unarchiveMessages, getEmailsByStatuses,
+  markEmailSent, markEmailFailed, markEmailBounced, markEmailComplained, markEmailDelivered,
+  findEmailBySesMessageId, getSuppressedAddresses, getEmailsByBatch,
+  archiveMessages, unarchiveMessages, getEmailsByStatuses,
   createInboundEmail, createOutboundEmail, getInboundState, getThreadByAddr, findRegistrationIdByEmail, findRegistrationIdByMessageId,
   markEmailRead, countUnreadInbound,
   countPendingEmails, getDashboardStats,
