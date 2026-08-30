@@ -4,9 +4,18 @@
 <div class="admin-layout">
   <%- include('_sidebar', { active: 'messages', tab: 'confirmations' }) %>
   <main class="admin-main">
+    <%
+      const threadIds = emails.map(e => e.id).join(',');
+      const threadArchived = emails.length > 0 && emails.every(e => e.archivedAt);
+    %>
     <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 16px;">
       <a href="/admin/messages?tab=confirmations" class="btn btn-outline btn-sm">&larr; Back</a>
-      <h1 style="margin: 0;">Conversation with <%= replyTo || latest.toAddr %></h1>
+      <h1 style="margin: 0; flex: 1;">Conversation with <%= replyTo || latest.toAddr %></h1>
+      <form method="POST" action="/admin/messages/<%= threadArchived ? 'unarchive' : 'archive' %>" style="margin: 0;">
+        <input type="hidden" name="item_ids" value="<%= threadIds %>">
+        <input type="hidden" name="return_to" value="/admin/messages?tab=confirmations">
+        <button type="submit" class="btn btn-outline btn-sm"><%= threadArchived ? 'Unarchive' : 'Archive' %></button>
+      </form>
     </div>
 
     <div class="email-meta">
@@ -95,6 +104,17 @@
             <% if (inbound) { %>
               <div style="white-space: pre-wrap; font-size: 0.9rem;"><%= e.bodyText || '(no text content)' %></div>
             <% } else { %>
+              <%#
+                XSS NOTE (deferred, tracked): outbound bodies render as raw HTML so
+                admin-authored rich-text emails display correctly. Today every
+                outbound row is authored by the logged-in admin (confirmations,
+                replies, follow-ups) or generated server-side, so this is at most
+                self-XSS. INBOUND is always escaped as text above (never raw HTML).
+                Before any inbound HTML is ever rendered raw here, this MUST be
+                sanitized. Preferring not to add a sanitiser dependency now; if one
+                is added, DOMPurify (server-side via jsdom) or `sanitize-html` are
+                the candidates and need a security review first.
+              %>
               <div style="white-space: pre-wrap; font-size: 0.9rem;"><%- e.body %></div>
             <% } %>
             <% if (e.attachments && e.attachments.length > 0) { %>

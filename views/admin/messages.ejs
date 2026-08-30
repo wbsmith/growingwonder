@@ -2,12 +2,12 @@
 <link rel="stylesheet" href="/css/admin.css">
 
 <div class="admin-layout">
-  <%- include('_sidebar', { active: 'messages', tab: tab, unreadInbox: typeof unreadInbox !== 'undefined' ? unreadInbox : 0 }) %>
+  <%- include('_sidebar', { active: 'messages', tab: tab, unreadInbox: typeof unreadInbox !== 'undefined' ? unreadInbox : 0, failuresCount: typeof failuresCount !== 'undefined' ? failuresCount : 0 }) %>
   <main class="admin-main">
-    <h1><%= tab === 'bulk' ? 'Bulk Send' : tab === 'inquiries' ? 'Inquiries' : 'Inbox' %></h1>
+    <h1><%= tab === 'bulk' ? 'Bulk Send' : tab === 'inquiries' ? 'Inquiries' : tab === 'failures' ? 'Delivery Issues' : 'Inbox' %></h1>
 
     <% if (tab === 'confirmations') { %>
-      <!-- INBOX TAB (mirrors registration@ + info@; threaded) -->
+      <!-- INBOX TAB (mirrors registration@ + info@; threaded; live-updating) -->
       <%
         const filterOpts = [
           { key: 'all', label: 'All' },
@@ -15,17 +15,23 @@
           { key: 'info', label: 'Info' },
           { key: 'unread', label: 'Unread' },
           { key: 'confirmations', label: 'Confirmations' },
+          { key: 'general', label: 'General' },
+          { key: 'archived', label: 'Archived' },
         ];
         const activeFilter = typeof filter !== 'undefined' ? filter : 'all';
+        const qVal = typeof q !== 'undefined' ? q : '';
+        const qSuffix = qVal ? '&q=' + encodeURIComponent(qVal) : '';
       %>
       <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px; margin-bottom:16px;">
         <div style="display:flex; gap:6px; flex-wrap:wrap;">
           <% filterOpts.forEach(f => { %>
-            <a href="/admin/messages?tab=confirmations&filter=<%= f.key %>"
+            <a href="/admin/messages?tab=confirmations&filter=<%= f.key %><%= qSuffix %>"
                class="btn btn-sm <%= activeFilter === f.key ? 'btn-green' : 'btn-outline' %>"><%= f.label %></a>
           <% }) %>
         </div>
         <div style="display:flex; align-items:center; gap:10px;">
+          <input type="search" id="inboxSearch" placeholder="Search mail…" value="<%= qVal %>"
+            style="padding:6px 12px; border:1px solid #ccc; border-radius:var(--radius); font-size:0.85rem; min-width:200px;">
           <span id="refreshStatus" style="font-size:0.8rem; color:var(--text-light);"></span>
           <% if (mailEnabled) { %>
             <button type="button" class="btn btn-outline btn-sm" id="refreshInboxBtn" onclick="refreshInbox(true)">&#x21bb; Refresh</button>
@@ -35,89 +41,171 @@
         </div>
       </div>
 
-      <% if (threads.length === 0) { %>
-        <p style="color: var(--text-light);">No messages<%= activeFilter !== 'all' ? ' for this filter' : '' %>.</p>
-      <% } else { %>
-        <table class="data-table">
-          <thead>
-            <tr>
-              <th></th>
-              <th>From / To</th>
-              <th>Subject</th>
-              <th>Messages</th>
-              <th>Latest</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
-            <% threads.forEach(t => { %>
-              <%
-                const href = t.registrationId
-                  ? '/admin/messages/thread/' + t.registrationId
-                  : '/admin/messages/thread/addr/' + encodeURIComponent(t.addr);
-              %>
-              <tr style="<%= t.unreadCount > 0 ? 'font-weight:600; background:#f4f8f3;' : '' %>">
-                <td style="white-space:nowrap;">
-                  <% if (t.unreadCount > 0) { %><span title="<%= t.unreadCount %> unread" style="display:inline-block; width:9px; height:9px; border-radius:50%; background:var(--green-mid); vertical-align:middle;"></span><% } %>
-                  <% if (t.latestStatus === 'draft') { %><span class="badge badge-draft">draft</span><% } %>
-                  <% if (t.latestStatus === 'failed') { %><span class="badge badge-failed">failed</span><% } %>
-                </td>
-                <td>
-                  <div><%= t.toAddr %></div>
-                  <% if (t.parentName) { %><div style="font-size:0.78rem; color:var(--text-light); font-weight:normal;"><%= t.parentName %><%= t.childName ? ' · ' + t.childName : '' %></div><% } %>
-                </td>
-                <td>
-                  <div><%= t.subject %><% if (t.isRegistration) { %> <span style="display:inline-block; font-size:0.7rem; font-weight:700; padding:1px 6px; border-radius:8px; color:var(--green-dark); border:1px solid var(--green-mid); vertical-align:middle;">Confirmation</span><% } %></div>
-                  <% if (t.latestSnippet) { %><div style="font-size:0.78rem; color:var(--text-light); font-weight:normal; max-width:340px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"><%= t.latestDirection === 'in' ? '↩ ' : '' %><%= t.latestSnippet %></div><% } %>
-                </td>
-                <td style="text-align: center;">
-                  <% if (t.messageCount > 1) { %>
-                    <span style="background: var(--green-dark); color: white; border-radius: 10px; padding: 1px 7px; font-size: 0.75rem; font-weight: 600;"><%= t.messageCount %></span>
-                  <% } else { %>
-                    1
-                  <% } %>
-                </td>
-                <td style="font-size: 0.8rem;"><%= t.latestDate %></td>
-                <td style="white-space:nowrap;">
-                  <a href="<%= href %>" class="btn btn-outline btn-sm">
-                    <%= t.latestStatus === 'draft' ? 'Open' : t.messageCount > 1 ? 'View Thread' : 'View' %>
-                  </a>
-                  <form method="POST" action="/admin/messages/delete" style="display:inline; margin-left: 4px;">
-                    <input type="hidden" name="type" value="email">
-                    <input type="hidden" name="item_id" value="<%= t.messages.map(m => m.id).join(',') %>">
-                    <button type="submit" style="background:none;border:none;color:var(--red);cursor:pointer;font-size:1rem;padding:2px 4px;vertical-align:middle;" title="Delete"
-                      onclick="return confirm('<%= t.messageCount > 1 ? 'Delete all ' + t.messageCount + ' messages in this thread?' : 'Delete this message?' %>')">&#x1F5D1;</button>
-                  </form>
-                </td>
-              </tr>
-            <% }) %>
-          </tbody>
-        </table>
-      <% } %>
+      <p id="inboxEmpty" style="color: var(--text-light); <%= threads.length === 0 ? '' : 'display:none;' %>">No messages<%= activeFilter !== 'all' || qVal ? ' for this filter' : '' %>.</p>
+      <table class="data-table" id="inboxTable" style="<%= threads.length === 0 ? 'display:none;' : '' %>">
+        <thead>
+          <tr>
+            <th></th>
+            <th>From / To</th>
+            <th>Subject</th>
+            <th>Messages</th>
+            <th>Latest</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="inboxBody">
+          <% threads.forEach(t => { %><%- renderThreadRow(t) %><% }) %>
+        </tbody>
+      </table>
 
-      <% if (mailEnabled) { %>
+      <!-- Shared row renderer: the browser uses the very same function the server
+           used above, so live-inserted rows match server-rendered ones exactly. -->
+      <script src="/js/inbox-render.js"></script>
       <script>
-        // Pull new inbound mail. Auto-runs once on load (silent); the Refresh
-        // button runs it explicitly. Reloads to surface anything new.
-        async function refreshInbox(manual) {
-          const status = document.getElementById('refreshStatus');
-          const btn = document.getElementById('refreshInboxBtn');
-          if (btn) btn.disabled = true;
-          if (status) status.textContent = manual ? 'Checking mail…' : '';
+      (function () {
+        var FILTER = <%- JSON.stringify(activeFilter) %>;
+        var Q = <%- JSON.stringify(qVal) %>;
+        var MAIL_ENABLED = <%- JSON.stringify(!!mailEnabled) %>;
+        var POLL_MS = 15000;
+        var tbody = document.getElementById('inboxBody');
+        var tableEl = document.getElementById('inboxTable');
+        var emptyEl = document.getElementById('inboxEmpty');
+        var statusEl = document.getElementById('refreshStatus');
+        var searchEl = document.getElementById('inboxSearch');
+        var timer = null;
+
+        function feedUrl() {
+          return '/admin/messages/feed?filter=' + encodeURIComponent(FILTER) + '&q=' + encodeURIComponent(Q);
+        }
+
+        // Keep the sidebar unread pill in sync without a reload.
+        function updateUnreadPill(n) {
+          var a = document.getElementById('navInbox'); if (!a) return;
+          var badge = document.getElementById('navUnread');
+          if (n > 0) {
+            if (!badge) {
+              badge = document.createElement('span');
+              badge.id = 'navUnread';
+              badge.style.cssText = 'background: var(--green-dark); color:#fff; border-radius:10px; padding:0 6px; font-size:0.7rem; font-weight:700; margin-left:4px;';
+              a.appendChild(badge);
+            }
+            badge.textContent = n;
+          } else if (badge) { badge.remove(); }
+        }
+
+        // Upsert rows by data-thread-key, in feed order; remove rows that dropped
+        // out of the current filter/search. Unchanged rows (same data-sig) are
+        // left in place so the CSRF-injected forms survive.
+        function applyThreads(threads) {
+          if (!tbody) return;
+          var existing = {};
+          Array.prototype.forEach.call(tbody.querySelectorAll('tr[data-thread-key]'), function (r) {
+            existing[r.getAttribute('data-thread-key')] = r;
+          });
+          var seen = {};
+          threads.forEach(function (t) {
+            seen[t.key] = true;
+            var cur = existing[t.key];
+            var tmp = document.createElement('tbody');
+            tmp.innerHTML = window.renderThreadRow(t);
+            var fresh = tmp.firstElementChild;
+            if (cur) {
+              if (cur.getAttribute('data-sig') !== fresh.getAttribute('data-sig')) { cur.replaceWith(fresh); cur = fresh; }
+            } else { cur = fresh; }
+            tbody.appendChild(cur); // move into feed order (no-op if already there)
+          });
+          Object.keys(existing).forEach(function (k) { if (!seen[k]) existing[k].remove(); });
+          var any = threads.length > 0;
+          if (tableEl) tableEl.style.display = any ? '' : 'none';
+          if (emptyEl) emptyEl.style.display = any ? 'none' : '';
+        }
+
+        async function pollFeed() {
           try {
-            const res = await fetch('/admin/messages/refresh', { method: 'POST' });
-            const data = await res.json();
-            if (data.ok && data.total > 0) { window.location.reload(); return; }
-            if (status) status.textContent = manual ? (data.ok ? 'No new messages.' : ('Error: ' + (data.error || 'sync failed'))) : '';
+            var res = await fetch(feedUrl(), { headers: { 'Accept': 'application/json' } });
+            if (!res.ok) return;
+            var data = await res.json();
+            applyThreads(data.threads || []);
+            updateUnreadPill(data.unreadInbound || 0);
+          } catch (e) { /* transient; next tick retries */ }
+        }
+
+        // Refresh button: pull new mail over IMAP (if configured), then patch the
+        // DOM from the feed — no full-page reload.
+        async function refreshInbox(manual) {
+          var btn = document.getElementById('refreshInboxBtn');
+          if (btn) btn.disabled = true;
+          if (statusEl) statusEl.textContent = manual ? 'Checking mail…' : '';
+          try {
+            if (MAIL_ENABLED) {
+              var res = await fetch('/admin/messages/refresh', { method: 'POST' });
+              var data = await res.json();
+              if (statusEl) statusEl.textContent = manual
+                ? (data.ok ? (data.total > 0 ? 'New mail.' : 'No new messages.') : ('Error: ' + (data.error || 'sync failed')))
+                : '';
+            }
+            await pollFeed();
           } catch (e) {
-            if (status) status.textContent = manual ? 'Refresh failed.' : '';
+            if (statusEl) statusEl.textContent = manual ? 'Refresh failed.' : '';
           } finally {
             if (btn) btn.disabled = false;
           }
         }
-        // Silent auto-check shortly after load so replies appear without a click.
-        window.addEventListener('load', function () { setTimeout(function () { refreshInbox(false); }, 400); });
+        window.refreshInbox = refreshInbox;
+
+        function startPolling() {
+          if (timer) return;
+          timer = setInterval(function () { if (!document.hidden) pollFeed(); }, POLL_MS);
+        }
+        // Catch up as soon as the tab becomes visible again.
+        document.addEventListener('visibilitychange', function () { if (!document.hidden) pollFeed(); });
+
+        // Debounced live search → /feed?q=; keeps the URL deep-linkable.
+        if (searchEl) {
+          var st = null;
+          searchEl.addEventListener('input', function () {
+            clearTimeout(st);
+            st = setTimeout(function () {
+              Q = searchEl.value.trim();
+              try {
+                var u = new URL(window.location.href);
+                if (Q) u.searchParams.set('q', Q); else u.searchParams.delete('q');
+                history.replaceState(null, '', u.toString());
+              } catch (e) { /* older browser; skip URL sync */ }
+              pollFeed();
+            }, 300);
+          });
+        }
+
+        // Pull mail once on load (silent) then poll on an interval.
+        window.addEventListener('load', function () {
+          setTimeout(function () { refreshInbox(false); }, 400);
+          startPolling();
+        });
+      })();
       </script>
+
+    <% } else if (tab === 'failures') { %>
+      <!-- DELIVERY ISSUES TAB (read-only; empty until outbound-delivery tracking lands) -->
+      <% if (!failures || failures.length === 0) { %>
+        <p style="color: var(--text-light);">No delivery issues. Bounces, complaints, and send failures will appear here.</p>
+      <% } else { %>
+        <table class="data-table">
+          <thead>
+            <tr><th>Status</th><th>To</th><th>Subject</th><th>Reason</th><th>When</th></tr>
+          </thead>
+          <tbody>
+            <% failures.forEach(f => { %>
+              <tr>
+                <td><span class="badge badge-failed"><%= f.status %></span></td>
+                <td><%= f.toAddr %></td>
+                <td><%= f.subject %></td>
+                <td style="font-size:0.8rem; color:var(--text-light);"><%= f.failureReason || f.bounceType || '' %></td>
+                <td style="font-size:0.8rem;"><%= f.eventAt || f.sentAt || f.createdAt || '' %></td>
+              </tr>
+            <% }) %>
+          </tbody>
+        </table>
       <% } %>
 
     <% } else if (tab === 'bulk') { %>
