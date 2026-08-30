@@ -22,22 +22,8 @@ const asyncHandler = fn => (req, res, next) => Promise.resolve(fn(req, res, next
 // folder and threads for the recipient; falls back to SES if SMTP isn't set up.
 // Records the sent message as an outbound row so it shows in the thread.
 async function deliverReply({ to, account, subject, body, inReplyTo, references, registrationId, meta }) {
-  let messageId = null;
-  if (smtp.isConfigured()) {
-    const r = await smtp.sendReply({
-      accountKey: account, to, subject, text: body,
-      inReplyTo: inReplyTo || undefined,
-      references: references ? references.split(/\s+/).filter(Boolean) : [],
-    });
-    messageId = r.messageId;
-  } else if (mailer.isConfigured()) {
-    const r = await mailer.send(to, subject, body, 'registration', [], 'text', { inReplyTo, references });
-    messageId = r && r.messageId;
-  } else {
-    throw new Error('No mail transport configured (set MAIL_* or SES_* env vars).');
-  }
   const now = new Date().toISOString();
-  await db.createOutboundEmail({
+  const baseRow = {
     id: ulid(),
     direction: 'out',
     registrationId: registrationId || null,
@@ -45,14 +31,43 @@ async function deliverReply({ to, account, subject, body, inReplyTo, references,
     mailbox: account || 'registration',
     subject,
     body,
-    status: 'sent',
-    sentAt: now,
     createdAt: now,
-    messageId,
     inReplyTo: inReplyTo || null,
     parentName: (meta && meta.parentName) || null,
     childName: (meta && meta.childName) || null,
     programName: (meta && meta.programName) || null,
+  };
+  let messageId = null, sesMessageId = null, fromAddr = null;
+  try {
+    if (smtp.isConfigured()) {
+      const r = await smtp.sendReply({
+        accountKey: account, to, subject, text: body,
+        inReplyTo: inReplyTo || undefined,
+        references: references ? references.split(/\s+/).filter(Boolean) : [],
+      });
+      messageId = r.messageId;
+      fromAddr = r.from || null;
+    } else if (mailer.isConfigured()) {
+      // Derive the SES From identity from the mailbox the thread belongs to,
+      // instead of always sending as registration@.
+      const purpose = account === 'info' ? 'info' : 'registration';
+      const r = await mailer.send(to, subject, body, purpose, [], 'text', { inReplyTo, references });
+      messageId = r && r.messageId;
+      sesMessageId = r && r.sesMessageId;
+      fromAddr = mailer.getFromAddress(purpose);
+    } else {
+      throw new Error('No mail transport configured (set MAIL_* or SES_* env vars).');
+    }
+  } catch (err) {
+    // Record the failed send so reply/follow-up failures are visible in the
+    // thread and the delivery-issues panel, then rethrow so the flash surfaces it.
+    await db.createOutboundEmail({
+      ...baseRow, status: 'failed', failureReason: err.message, fromAddr,
+    });
+    throw err;
+  }
+  await db.createOutboundEmail({
+    ...baseRow, status: 'sent', sentAt: now, messageId, sesMessageId, fromAddr,
   });
   return messageId;
 }
