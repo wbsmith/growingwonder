@@ -1,6 +1,6 @@
 # World in Wonder — Current State
 
-_Last updated: 2026-08-29. Branch `main`. Pushed/deployed: registration fix (106, `4b1107d`), admin Registrations fix (107, `c888d4c`), inbox sync fix (108, `1377404`), DynamoDB pagination + first tests (109, `98f02a5`), mobile scroll-lock CSS (`8097a2d`), mobile capacity save (`60f6a61`). Latest work (**local only, not pushed/deployed**): **Inbox "real email client" upgrade** — no-reload live feed poll, full-text search, message-level archive/triage, and a read-only delivery-issues panel. This is the inbox-client half of a larger email overhaul; the SES outbound engine / compose / bounce webhook are a separate workstream (not built here). Per-child dates deployed (job 103) and migrated on prod._
+_Last updated: 2026-08-29. Branch `main`. Pushed/deployed: registration fix (106, `4b1107d`), admin Registrations fix (107, `c888d4c`), inbox sync fix (108, `1377404`), DynamoDB pagination + first tests (109, `98f02a5`), mobile scroll-lock CSS (`8097a2d`), mobile capacity save (`60f6a61`). Latest work (**local only, not pushed/deployed**): (1) **Inbox "real email client" upgrade** — no-reload live feed poll, full-text search, message-level archive/triage, and a read-only delivery-issues panel (on `main`); (2) **SES outbound / deliverability engine** on branch **`outbound-engine`** — every send is recorded with its SES MessageId and delivery outcome (sent/delivered/bounced/complained/failed/suppressed), Compose fans out to individual private per-recipient sends, confirmations can auto-send (env-gated), and an SNS webhook records bounces/complaints. Per-child dates deployed (job 103) and migrated on prod._
 
 > **History — 2026-07-15:** (1) public registration broken since `fb5c585`
 > (arithmetic in a DynamoDB `ConditionExpression`) → job 106; (2) admin per-row
@@ -98,7 +98,7 @@ deploy-manifest.json      Amplify compute routing/runtime
 routes/
   public.js               public site + registration + contact inquiry
   admin.js                all of /admin (auth, programs, enrollments, messages…)
-  api.js                  /api/dates/:programId; /api/cron/sync-inbox (token-gated)
+  api.js                  /api/dates/:programId; /api/cron/sync-inbox; /api/ses-events (SNS webhook)
 lib/
   dates.js                today() in America/Los_Angeles (PST/PDT) for past-date cutoffs
   auth.js, session.js     admin auth + cookie session
@@ -106,7 +106,8 @@ lib/
   env.js                  .env loader (no dotenv dep)
   site.js                 site name/phone/email constants
   storage.js              S3 upload (presigned + server-side putBuffer)
-  mailer.js               SES outbound (raw MIME; sets Message-ID)
+  mailer.js               SES outbound (raw MIME; sets Message-ID; returns sesMessageId)
+  outbound.js             SES send engine: fetchAttachments, sendConfirmation, sendCompose (fan-out)
   email-html.js           normalizes editor HTML for email
   mail-config.js          per-mailbox creds (MAIL_*), shared by IMAP + SMTP
   imap-sync.js            inbound IMAP mirror -> wiw-email-queue
@@ -172,16 +173,50 @@ inbox that mirrors both Namecheap mailboxes and threads them with outbound mail.
 
 **Storage** — `wiw-email-queue` holds both directions, distinguished by
 `direction` (`'in'` | `'out'`; missing = `'out'` for legacy rows):
-- Outbound: `status` draft|sent|failed, `toAddr`, `subject`, `body`, `messageId`,
-  `registrationId`, attachments.
+- Outbound: `status` draft|sent|failed|bounced|complained|suppressed, `toAddr`,
+  `subject`, `body`, `messageId` (RFC), `sesMessageId` (SES-assigned correlation
+  key), `registrationId`, attachments. Delivery-engine fields (additive):
+  `batchId` (compose group), `fromAddr` (sending identity), `failureReason`,
+  `bounceType`/`bounceSubType`, `eventAt`, `deliveredAt`.
 - Inbound: `mailbox` (registration|info), `fromAddr/fromName`, `bodyText`,
   `messageId`, `inReplyTo`, `references`, `imapUid`/`imapUidValidity`, `read`,
   attachments (→ S3). Row id is **deterministic** = `in_<sha1(mailbox|messageId)>`
   so re-pulls overwrite instead of duplicating.
 
 **Outbound (SES)** — `lib/mailer.js` sends via SES (raw MIME, sets a stable
-`Message-ID`). Confirmation drafts are edited/sent from the admin; bulk send and
-inquiry replies also go through SES.
+`Message-ID`, now **returns the SES-assigned MessageId** and attaches
+`ConfigurationSetName` when `SES_CONFIGURATION_SET` is set). `lib/outbound.js` is
+the consolidated send engine on top of it:
+- `sendConfirmation(email)` — best-effort SES send of a queued confirmation row,
+  then `markEmailSent` (records `sesMessageId` + `fromAddr`) or
+  `markEmailFailed(reason)`. Never throws.
+- `sendCompose({recipients,…})` — **individual private per-recipient fan-out**
+  (never BCC): one message per recipient with a fresh Message-ID, one outbound row
+  with a single `toAddr` (the privacy guarantee) sharing a `batchId`. Loads the
+  suppression list once — a suppressed address gets a `suppressed` row and no send;
+  a per-recipient SES error gets a `failed` row and the batch continues.
+- `fetchAttachments(keys)` — the shared S3-fetch helper (dedupes code formerly
+  inlined in `routes/admin.js`).
+
+**Confirmations auto-send (env-gated).** `POST /register` calls `sendConfirmation`
+best-effort **only when `AUTO_SEND_CONFIRMATIONS=true`** — so it can't fire before
+the operator validates SES; when off (default), the confirmation stays a draft for
+manual send. Registration always succeeds regardless of send outcome.
+`/messages/emails/:id/send` now also accepts a `failed` row (**Resend**), and the
+**Bulk Send** route (`POST /messages/bulk/send`) is repurposed to `sendCompose`
+(the old BCC `mailer.sendBulk` is retired from that route; the Compose UI itself is
+a follow-up — the existing Bulk view still drives it).
+
+**Delivery events (SNS webhook).** `POST /api/ses-events` (in `routes/api.js`, no
+CSRF there) ingests SES bounce/complaint/delivery events. It mounts
+`express.text()` on that route only (SNS posts text/plain), requires
+`?key=SES_EVENTS_KEY` (403 else), **and** verifies the real SNS signature
+(`SigningCertURL` + `crypto`, SSRF-guarded to `sns.*.amazonaws.com`). Handles
+`SubscriptionConfirmation` (GETs the SubscribeURL) and `Notification` (maps
+`event.mail.messageId` → row via `findEmailBySesMessageId`, marks
+bounced/complained/delivered). Always answers 200 on handler errors so SNS doesn't
+retry-storm. **Suppression is derived** (`getSuppressedAddresses`): permanent
+bounces + complaints → a lowercased Set; no separate table.
 
 **Inbound (IMAP mirror)** — `lib/imap-sync.js` reads both cPanel mailboxes over
 IMAP and stores messages as `direction:'in'`. Read-only against IMAP (never
@@ -281,6 +316,24 @@ The mailboxes are **Namecheap cPanel email accounts** (not Private Email).
 | Info mailbox   | `MAIL_INFO_USER` / `MAIL_INFO_PASS` (info@)       |
 | SES senders    | `SES_FROM_EMAIL_REG`, `SES_FROM_EMAIL_INFO`       |
 | Optional cron  | `MAIL_CRON_KEY` (unset)                           |
+| SES events     | `SES_CONFIGURATION_SET`, `SES_SNS_TOPIC_ARN`, `SES_EVENTS_KEY` |
+| Auto-send flag | `AUTO_SEND_CONFIRMATIONS` (unset = off)           |
+
+**SES delivery-engine env (must be set on the Amplify app AND echoed in
+`amplify.yml`, already added):**
+- `SES_CONFIGURATION_SET` — SES config set publishing BOUNCE/COMPLAINT/DELIVERY to
+  SNS. Leave unset until the operator creates it (us-west-1); sends still work
+  without it, they just emit no tracked events.
+- `SES_SNS_TOPIC_ARN` — the SNS topic ARN (reference/documentation).
+- `SES_EVENTS_KEY` — shared secret gating `POST /api/ses-events?key=…` (the SNS
+  subscription URL must include it; requests are also SNS-signature-verified).
+- `AUTO_SEND_CONFIRMATIONS` — set to exactly `true` to auto-send confirmations on
+  registration; otherwise they stay drafts for manual send.
+
+> **Operator prerequisites before delivery events flow (out of app scope):** create
+> the SES config set (event destination → SNS), create the SNS topic, and subscribe
+> `https://worldinwonder.com/api/ses-events?key=<SES_EVENTS_KEY>`. The app confirms
+> the subscription automatically. No infra was created by this workstream.
 
 **Host gotcha:** cPanel's "Mail Client" screen lists the server as
 `worldinwonder.com`, which does **not** work here — that name resolves to the
@@ -298,6 +351,26 @@ placeholders in a local `.env` are unused.)
 
 ## Recent changes
 
+- **(2026-08-29) SES outbound / deliverability engine** (branch `outbound-engine`,
+  local only — not pushed/deployed, no AWS infra created): every SES send is now
+  recorded with its `sesMessageId` and delivery outcome. See the *Outbound (SES)*
+  and *Delivery events* blocks under *Messaging / Inbox subsystem*. New:
+  `lib/outbound.js` (`fetchAttachments`, `sendConfirmation`, `sendCompose` fan-out),
+  `POST /api/ses-events` (SNS bounce/complaint/delivery webhook, key + signature
+  verified). Changed: `mailer.send` returns `{messageId, sesMessageId}` + config-set
+  attach + H1 From fallback; `smtp.sendReply` H4 (throws for a specific-but-
+  unconfigured mailbox instead of sending as the wrong one); `deliverReply` records a
+  `failed` row on send error + derives SES From from the thread mailbox; auto-send
+  confirmations (env-gated `AUTO_SEND_CONFIRMATIONS`); `/messages/emails/:id/send`
+  allows Resend of `failed`; Bulk route → `sendCompose`. New db fns:
+  `markEmailBounced/Complained/Delivered`, `findEmailBySesMessageId`,
+  `getSuppressedAddresses`, `getEmailsByBatch`; `markEmailSent`/`markEmailFailed`
+  extended; `createRegistration` returns `{id, emailId}`. Tests:
+  `test/outbound.test.js` + `test/ses-events.test.js` — `npm test` green (30 tests).
+  Env added to `amplify.yml` + `config.sample`: `SES_CONFIGURATION_SET`,
+  `SES_SNS_TOPIC_ARN`, `SES_EVENTS_KEY`, `AUTO_SEND_CONFIRMATIONS`. **Operator must
+  create the config set + SNS subscription before events flow**, and flip the
+  auto-send flag only after validating SES.
 - **(2026-08-29) Inbox live-updates + search + archive** (local only, not
   deployed): built the inbox-client half of the email overhaul — see the
   "Live inbox" block under *Messaging / Inbox subsystem*. New: `lib/threads.js`
@@ -414,17 +487,28 @@ placeholders in a local `.env` are unused.)
 - **Backlog:** mailboxes hold ~143 (reg) / ~119 (info) messages; the first syncs
   pulled within a 90-day window, 100/run. Repeated Refreshes walk the rest.
 - **Justine Delfino's** confirmation is an unsent **draft** (never sent).
-- **Tests are minimal.** `npm test` (Node's built-in runner) covers DynamoDB
+- **Tests.** `npm test` (Node's built-in runner, **30 tests**) covers DynamoDB
   pagination (`test/pagination.test.js`), inbox thread-building / archive / cache
-  (`test/threads.test.js`), and HTML sanitization (`test/sanitize.test.js`). No
-  route-level / integration tests yet; the authenticated feed round-trip and IMAP
-  paths are still verified manually (`scripts/test-imap.js` for mailbox connectivity).
+  (`test/threads.test.js`), HTML sanitization (`test/sanitize.test.js`), the SES
+  outbound engine (`test/outbound.test.js` — fan-out privacy, per-recipient failure
+  isolation, suppression skip, confirmation sent/failed, H1/H4 From fixes), and the
+  SES webhook (`test/ses-events.test.js` — real SNS-signature round-trip through the
+  live app: 403 on wrong key / tampered signature, subscription confirm, bounce →
+  suppression, complaint). All sends/HTTP/DynamoDB are stubbed (no real mail). The
+  authenticated inbox-feed round-trip and IMAP paths are still verified manually.
 - **npm audit: 7 pre-existing vulns** (6 high) in the mail stack's transitive deps
   (`brace-expansion`, `html-to-text`/`deepmerge-ts`, `ip-address`, `linkify-it` via
   `mailparser`/`imapflow`/`nodemailer`) — not from `sanitize-html`. `npm audit fix`
   would bump majors in that stack; deferred as a separate, tested cleanup.
-- **Delivery-issues panel is empty** until the outbound-delivery workstream writes
-  `bounced`/`complained`/`suppressed` rows.
+- **Delivery-issues panel** populates once the SNS webhook records
+  `bounced`/`complained` rows and the fan-out records `failed`/`suppressed` — which
+  requires the operator to create the SES config set + SNS subscription (see the SES
+  delivery-engine env note). Until then it stays empty.
+- **`AUTO_SEND_CONFIRMATIONS` deviates from the plan on purpose.** The design called
+  for unconditional confirmation auto-send; it's implemented but **gated behind an
+  env flag (default off)** so it can't fire before the operator validates SES
+  (DKIM + config set). Flip to `true` after validation. The 13 stranded draft
+  confirmations still need manual send (or a one-off script — not built here).
 - **Admin default-program `today` still uses UTC** (`routes/admin.js`, the
   most-active-program pick). Cosmetic only (which program is pre-selected); not
   switched to Pacific yet for scope. The public past-date cutoff uses `lib/dates`.
