@@ -455,6 +455,7 @@ async function createRegistration(data) {
   }
 
   await client.send(new TransactWriteCommand({ TransactItems: transactItems }));
+  invalidateEmailsCache(); // a confirmation draft row may have been written
   return id;
 }
 
@@ -547,6 +548,7 @@ async function deleteRegistration(id) {
 
   // Delete the registration
   await client.send(new DeleteCommand({ TableName: T.registrations, Key: { id } }));
+  invalidateEmailsCache(); // this reg's email-queue rows were removed above
 }
 
 async function mergeRegistrations(ids) {
@@ -711,6 +713,7 @@ async function mergeRegistrations(ids) {
   for (const r of others) {
     await client.send(new DeleteCommand({ TableName: T.registrations, Key: { id: r.id } }));
   }
+  invalidateEmailsCache(); // email-queue rows were reassigned/merged above
 }
 
 async function autoMergeRegistrations(field) {
@@ -911,15 +914,36 @@ async function updatePayment(id, paymentDate, paymentAmount, paymentNotes) {
 
 // ---- Email Queue ----
 
+// Short-lived in-process cache around the full wiw-email-queue scan. The inbox
+// polls the feed every ~15s and several admin tabs may be open at once; without
+// this each poll re-scans the whole (~1.5 MB, multi-page) table. TTL is small so
+// staleness is bounded, and every writer below calls invalidateEmailsCache() so
+// a reply / sync / archive / delete shows up on the very next read. Not a
+// correctness dependency — a miss just costs one extra scan.
+let _emailsCache = null; // { at: epochMs, data: [...] }
+function emailsCacheTtlMs() {
+  const v = Number(process.env.EMAILS_CACHE_TTL_MS);
+  return Number.isFinite(v) ? v : 8000;
+}
+function invalidateEmailsCache() { _emailsCache = null; }
+
 async function getAllEmails() {
+  const ttl = emailsCacheTtlMs();
+  if (ttl > 0 && _emailsCache && (Date.now() - _emailsCache.at) < ttl) {
+    return _emailsCache.data;
+  }
   const Items = await scanAll({ TableName: T.emails });
-  return Items.filter(e => !e.deletedAt).sort((a, b) => {
-    const statusOrder = { draft: 0, sent: 1, failed: 2 };
+  const data = Items.filter(e => !e.deletedAt).sort((a, b) => {
+    // draft first, then sent, then delivery-problem statuses, then everything
+    // else (inbound 'received', legacy rows) newest-first.
+    const statusOrder = { draft: 0, sent: 1, failed: 2, bounced: 2, complained: 2, suppressed: 2 };
     const sa = statusOrder[a.status] ?? 3;
     const sb = statusOrder[b.status] ?? 3;
     if (sa !== sb) return sa - sb;
-    return b.createdAt.localeCompare(a.createdAt);
+    return (b.createdAt || '').localeCompare(a.createdAt || '');
   });
+  _emailsCache = { at: Date.now(), data };
+  return data;
 }
 
 async function getEmail(id) {
@@ -938,6 +962,7 @@ async function updateEmailDraft(id, subject, body) {
     ExpressionAttributeNames: { '#st': 'status' },
     ExpressionAttributeValues: { ':s': subject, ':b': body, ':draft': 'draft' },
   }));
+  invalidateEmailsCache();
 }
 
 async function addEmailAttachment(id, attachment) {
@@ -947,6 +972,7 @@ async function addEmailAttachment(id, attachment) {
     UpdateExpression: 'SET attachments = list_append(if_not_exists(attachments, :empty), :item)',
     ExpressionAttributeValues: { ':empty': [], ':item': [attachment] },
   }));
+  invalidateEmailsCache();
 }
 
 async function removeEmailAttachment(id, index) {
@@ -955,6 +981,7 @@ async function removeEmailAttachment(id, index) {
     Key: { id },
     UpdateExpression: `REMOVE attachments[${parseInt(index, 10)}]`,
   }));
+  invalidateEmailsCache();
 }
 
 async function markEmailSent(id, messageId) {
@@ -971,6 +998,7 @@ async function markEmailSent(id, messageId) {
     ExpressionAttributeNames: names,
     ExpressionAttributeValues: values,
   }));
+  invalidateEmailsCache();
 }
 
 async function markEmailFailed(id) {
@@ -981,6 +1009,58 @@ async function markEmailFailed(id) {
     ExpressionAttributeNames: { '#st': 'status' },
     ExpressionAttributeValues: { ':failed': 'failed' },
   }));
+  invalidateEmailsCache();
+}
+
+// ---- Archive (message-level triage; mirrors the deletedAt soft-delete) ----
+//
+// Sets/clears archivedAt/archivedBy per message. Independent of deletedAt — an
+// archived thread stays archived until a new, non-archived inbound message
+// resurfaces it (see lib/threads.buildThreads). Accepts an array of ids.
+
+async function archiveMessages(ids, archivedBy) {
+  const now = new Date().toISOString();
+  for (const id of (ids || [])) {
+    await client.send(new UpdateCommand({
+      TableName: T.emails,
+      Key: { id },
+      UpdateExpression: 'SET archivedAt = :ts, archivedBy = :who',
+      ExpressionAttributeValues: { ':ts': now, ':who': archivedBy || 'admin' },
+    }));
+  }
+  invalidateEmailsCache();
+}
+
+async function unarchiveMessages(ids) {
+  for (const id of (ids || [])) {
+    await client.send(new UpdateCommand({
+      TableName: T.emails,
+      Key: { id },
+      UpdateExpression: 'REMOVE archivedAt, archivedBy',
+    }));
+  }
+  invalidateEmailsCache();
+}
+
+// Read-only failures feed: outbound rows in a delivery-problem status, via the
+// status-index GSI (no full-table scan). Empty until the outbound-delivery
+// workstream starts writing bounced/complained/suppressed. `deletedAt` rows are
+// excluded to match the rest of the inbox.
+async function getEmailsByStatuses(statuses) {
+  const out = [];
+  for (const st of (statuses || [])) {
+    const items = await queryAll({
+      TableName: T.emails,
+      IndexName: 'status-index',
+      KeyConditionExpression: '#st = :s',
+      FilterExpression: 'attribute_not_exists(deletedAt)',
+      ExpressionAttributeNames: { '#st': 'status' },
+      ExpressionAttributeValues: { ':s': st },
+    });
+    out.push(...items);
+  }
+  const when = e => e.eventAt || e.sentAt || e.createdAt || '';
+  return out.sort((a, b) => when(b).localeCompare(when(a)));
 }
 
 async function countPendingEmails() {
@@ -1069,6 +1149,7 @@ async function softDeleteMessage(type, id, adminUser) {
       ':who': adminUser || 'admin',
     },
   }));
+  if (type === 'email') invalidateEmailsCache();
 }
 
 async function countNewInquiries() {
@@ -1100,11 +1181,13 @@ async function getEmailsByRegistration(registrationId) {
 
 async function createInboundEmail(item) {
   await client.send(new PutCommand({ TableName: T.emails, Item: item }));
+  invalidateEmailsCache();
   return item.id;
 }
 
 async function createOutboundEmail(item) {
   await client.send(new PutCommand({ TableName: T.emails, Item: item }));
+  invalidateEmailsCache();
   return item.id;
 }
 
@@ -1181,6 +1264,7 @@ async function markEmailRead(id) {
     ExpressionAttributeNames: { '#read': 'read' },
     ExpressionAttributeValues: { ':true': true },
   }));
+  invalidateEmailsCache();
 }
 
 async function countUnreadInbound() {
@@ -1258,8 +1342,8 @@ module.exports = {
   createRegistration, getRegistration, getEnrollments, getRegistrationsByProgram,
   countRegistrationsByProgram, deleteRegistration, mergeRegistrations, autoMergeRegistrations, updateRegistrationDates, updatePayment,
   deriveSelectedDates, getRegistrationCountsByProgram,
-  getAllEmails, getEmail, getEmailsByRegistration, updateEmailDraft, addEmailAttachment, removeEmailAttachment,
-  markEmailSent, markEmailFailed,
+  getAllEmails, invalidateEmailsCache, getEmail, getEmailsByRegistration, updateEmailDraft, addEmailAttachment, removeEmailAttachment,
+  markEmailSent, markEmailFailed, archiveMessages, unarchiveMessages, getEmailsByStatuses,
   createInboundEmail, createOutboundEmail, getInboundState, getThreadByAddr, findRegistrationIdByEmail, findRegistrationIdByMessageId,
   markEmailRead, countUnreadInbound,
   countPendingEmails, getDashboardStats,
