@@ -242,11 +242,9 @@
             <select id="daySelect"></select>
           </div>
           <button type="button" class="btn btn-outline btn-sm" id="loadRecipientsBtn" onclick="fetchRecipients()">Load Recipients</button>
+          <span id="loadStatus" style="font-size:0.8rem; color:var(--text-light);"></span>
         </div>
-        <div id="recipientInfo" style="margin-top: 16px; display: none;">
-          <strong id="recipientCount">0</strong> recipient(s):
-          <div id="recipientList" style="font-size: 0.8rem; color: var(--text-light); margin-top: 4px; max-height: 100px; overflow-y: auto;"></div>
-        </div>
+        <!-- Loaded recipients render as editable chips in the send form below. -->
       </div>
       <form method="POST" action="/admin/messages/bulk/send" id="bulkSendForm">
         <input type="hidden" name="recipients" id="recipientHidden">
@@ -254,11 +252,19 @@
         <input type="hidden" name="body_format" value="html">
         <input type="hidden" name="attachment_keys" id="bulkAttachKeys" value="">
 
-        <!-- Manual recipients -->
+        <!-- Recipients: editable chip list (the send list; source of truth) -->
         <div class="form-group">
-          <label id="manualRecipientsLabel">Recipients <span style="font-weight:normal; color:var(--text-light);">(comma-separated emails)</span></label>
-          <input type="text" id="manualRecipients" placeholder="parent@example.com, another@example.com"
+          <label>Recipients <span id="recipCount" style="font-weight:normal; color:var(--text-light);">(0)</span>
+            <a href="#" id="clearRecipsBtn" onclick="clearRecips(); return false;"
+               style="font-weight:normal; font-size:0.8rem; margin-left:8px; display:none;">Clear all</a>
+          </label>
+          <div id="chipList" style="display:flex; flex-wrap:wrap; gap:6px; margin-bottom:8px;"></div>
+          <input type="text" id="manualRecipients" placeholder="Type an email and press Enter to add"
             style="padding: 10px 14px; border: 1px solid #ccc; border-radius: var(--radius); width: 100%;">
+          <div style="font-size:0.78rem; color:var(--text-light); margin-top:4px;">
+            Use “Load Recipients” above to add a group, then edit here — click × to remove any address, or type to add more.
+            Each recipient gets a private individual email; no one sees the others.
+          </div>
         </div>
 
         <div class="form-group">
@@ -297,21 +303,64 @@
         placeholder: 'Type your message...',
       });
 
-      // Merge manual + loaded recipients and set body on submit
-      document.getElementById('bulkSendForm').addEventListener('submit', function() {
+      // ---- Editable recipient chips (single source of truth for the send list) ----
+      const recips = [];
+      const isEmail = s => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s);
+      function renderRecips() {
+        const list = document.getElementById('chipList');
+        list.innerHTML = '';
+        recips.forEach(email => {
+          const chip = document.createElement('span');
+          chip.style.cssText = 'display:inline-flex; align-items:center; gap:6px; background:var(--sand); border:1px solid #ddd; border-radius:14px; padding:3px 6px 3px 10px; font-size:0.8rem;';
+          const t = document.createElement('span'); t.textContent = email; chip.appendChild(t);
+          const x = document.createElement('button'); x.type = 'button'; x.textContent = '×';
+          x.setAttribute('aria-label', 'Remove ' + email);
+          x.style.cssText = 'background:none; border:none; cursor:pointer; color:var(--red); font-size:1.05rem; line-height:1; padding:0 2px;';
+          x.onclick = () => removeRecip(email);
+          chip.appendChild(x);
+          list.appendChild(chip);
+        });
+        document.getElementById('recipCount').textContent = '(' + recips.length + ')';
+        document.getElementById('clearRecipsBtn').style.display = recips.length ? '' : 'none';
+        document.getElementById('recipientHidden').value = recips.join(',');
+        document.getElementById('sendBtn').disabled = recips.length === 0;
+      }
+      function addRecip(email) {
+        const e = String(email || '').trim();
+        if (!e || !isEmail(e)) return false;
+        if (recips.some(r => r.toLowerCase() === e.toLowerCase())) return false;
+        recips.push(e); return true;
+      }
+      function addRecips(arr) { (arr || []).forEach(addRecip); renderRecips(); }
+      function removeRecip(email) {
+        const i = recips.findIndex(r => r.toLowerCase() === email.toLowerCase());
+        if (i >= 0) { recips.splice(i, 1); renderRecips(); }
+      }
+      function clearRecips() { recips.length = 0; renderRecips(); }
+      // Manual add: Enter or comma commits valid emails; unfinished text stays put.
+      (function () {
+        const inp = document.getElementById('manualRecipients');
+        const flush = () => {
+          const parts = inp.value.split(/[,\s]+/).map(s => s.trim()).filter(Boolean);
+          let added = false;
+          parts.forEach(p => { if (addRecip(p)) added = true; });
+          inp.value = parts.filter(p => !isEmail(p)).join(', '); // keep partial/invalid text
+          if (added) renderRecips();
+        };
+        inp.addEventListener('keydown', ev => { if (ev.key === 'Enter' || ev.key === ',') { ev.preventDefault(); flush(); } });
+        inp.addEventListener('blur', flush);
+      })();
+      renderRecips(); // initial state: 0 recipients -> Send disabled
+
+      // Finalize body + recipients on submit.
+      document.getElementById('bulkSendForm').addEventListener('submit', function (e) {
+        const inp = document.getElementById('manualRecipients');
+        inp.value.split(/[,\s]+/).map(s => s.trim()).filter(Boolean).forEach(addRecip);
+        inp.value = '';
+        renderRecips();
         document.getElementById('bulkBodyHidden').value = bulkQuill.getCleanHtml();
-
-        // Merge manual recipients
-        const loaded = (document.getElementById('recipientHidden').value || '').split(',').filter(Boolean);
-        const manual = (document.getElementById('manualRecipients').value || '').split(',').map(e => e.trim()).filter(Boolean);
-        const all = [...new Set([...loaded, ...manual])];
-        document.getElementById('recipientHidden').value = all.join(',');
-
-        // Update count for confirm
-        if (all.length === 0) {
-          alert('No recipients specified.');
-          return false;
-        }
+        document.getElementById('recipientHidden').value = recips.join(',');
+        if (recips.length === 0) { alert('Add at least one recipient.'); e.preventDefault(); return false; }
       });
       function updateScopeUI() {
         const scope = document.getElementById('scope').value;
@@ -320,12 +369,8 @@
         document.getElementById('weekGroup').style.display = (scope === 'week') ? '' : 'none';
         document.getElementById('dayGroup').style.display = (scope === 'day') ? '' : 'none';
         document.getElementById('loadRecipientsBtn').style.display = isManual ? 'none' : '';
-        document.getElementById('recipientInfo').style.display = 'none';
-        document.getElementById('recipientHidden').value = '';
-        document.getElementById('sendBtn').disabled = !isManual;
-        document.getElementById('manualRecipientsLabel').innerHTML = isManual
-          ? 'Recipients <span style="font-weight:normal; color:var(--text-light);">(comma-separated emails)</span>'
-          : 'Additional Recipients <span style="font-weight:normal; color:var(--text-light);">(comma-separated emails)</span>';
+        // Recipients persist across scope changes (the chips are the source of truth);
+        // Send button state is driven by renderRecips().
       }
       function updateDateOptions() {
         const pid = document.getElementById('bulkProgramSelect').value;
@@ -345,13 +390,22 @@
         if (scope !== 'all') body.programId = programId;
         if (scope === 'week') body.weekStart = document.getElementById('weekSelect').value;
         if (scope === 'day') body.date = document.getElementById('daySelect').value;
-        const res = await fetch('/admin/messages/bulk/recipients', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body) });
-        const data = await res.json();
-        document.getElementById('recipientCount').textContent = data.count;
-        document.getElementById('recipientList').textContent = data.emails.join(', ');
-        document.getElementById('recipientHidden').value = data.emails.join(',');
-        document.getElementById('recipientInfo').style.display = 'block';
-        document.getElementById('sendBtn').disabled = data.count === 0;
+        const status = document.getElementById('loadStatus');
+        const btn = document.getElementById('loadRecipientsBtn');
+        btn.disabled = true; status.textContent = 'Loading…';
+        try {
+          const res = await fetch('/admin/messages/bulk/recipients', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body) });
+          const data = await res.json();
+          const emails = data.emails || [];
+          const before = recips.length;
+          addRecips(emails); // merges into the editable chip list (dedupes)
+          const added = recips.length - before;
+          status.textContent = `Loaded ${emails.length} — added ${added} new` + (emails.length - added > 0 ? `, ${emails.length - added} already in list.` : '.');
+        } catch (e) {
+          status.textContent = 'Load failed.';
+        } finally {
+          btn.disabled = false;
+        }
       }
 
       // Bulk attachments
