@@ -25,6 +25,21 @@ MAIL_INFO_PASS=
 # Optional: shared secret for the scheduled sync endpoint
 # GET /api/cron/sync-inbox?key=...  (e.g. wired to EventBridge Scheduler)
 MAIL_CRON_KEY=
+
+# ---- SES outbound / deliverability engine ----
+# SES configuration set that publishes BOUNCE/COMPLAINT/DELIVERY events to SNS.
+# Leave UNSET until the operator creates the set (us-west-1) — sends still work
+# without it, they just won't emit tracked delivery events.
+SES_CONFIGURATION_SET=
+# ARN of the SNS topic the config set publishes to (documentation/reference only).
+SES_SNS_TOPIC_ARN=
+# Shared secret gating the SNS webhook: POST /api/ses-events?key=...  SNS
+# subscription URL must include this key. Requests are ALSO SNS-signature-verified.
+SES_EVENTS_KEY=
+# Auto-send registration confirmations on submit. Leave unset/false until SES
+# (DKIM + config set) is validated; when off, confirmations stay drafts for manual
+# send from the admin. Set to exactly "true" to enable.
+AUTO_SEND_CONFIRMATIONS=
 # Optional tuning: first-run history window (days) and per-sync cap
 # MAIL_FIRST_RUN_DAYS=90
 # MAIL_MAX_PER_SYNC=100

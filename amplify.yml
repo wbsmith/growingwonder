@@ -29,6 +29,10 @@ frontend:
         - echo "MAIL_INFO_USER=$MAIL_INFO_USER" >> .amplify-hosting/compute/default/.env
         - echo "MAIL_INFO_PASS=$MAIL_INFO_PASS" >> .amplify-hosting/compute/default/.env
         - echo "MAIL_CRON_KEY=$MAIL_CRON_KEY" >> .amplify-hosting/compute/default/.env
+        - echo "SES_CONFIGURATION_SET=$SES_CONFIGURATION_SET" >> .amplify-hosting/compute/default/.env
+        - echo "SES_SNS_TOPIC_ARN=$SES_SNS_TOPIC_ARN" >> .amplify-hosting/compute/default/.env
+        - echo "SES_EVENTS_KEY=$SES_EVENTS_KEY" >> .amplify-hosting/compute/default/.env
+        - echo "AUTO_SEND_CONFIRMATIONS=$AUTO_SEND_CONFIRMATIONS" >> .amplify-hosting/compute/default/.env
         - echo "NODE_ENV=production" >> .amplify-hosting/compute/default/.env
         - cd .amplify-hosting/compute/default && rm -rf node_modules && npm ci --omit=dev
   artifacts:
