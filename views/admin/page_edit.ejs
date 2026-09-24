@@ -1,14 +1,16 @@
-<%- include('../layout_head', { title: 'Edit ' + (page.heroTitle || page.slug) }) %>
+<% const m = (typeof meta !== 'undefined' && meta) ? meta : { title: (page.heroTitle || page.slug), viewPath: '/' + page.slug, noHero: false }; %>
+<%- include('../layout_head', { title: 'Edit ' + m.title }) %>
 <link rel="stylesheet" href="/css/admin.css">
 
 <div class="admin-layout">
   <%- include('_sidebar', { active: 'pages', pageSlug: page.slug }) %>
   <main class="admin-main">
-    <h1>Edit: <%= page.heroTitle || page.slug %></h1>
+    <h1>Edit: <%= m.title %></h1>
     <p style="margin-bottom: 24px;">
-      <a href="/<%= page.slug %>" target="_blank" class="btn btn-outline btn-sm">Preview Page</a>
+      <a href="<%= m.viewPath %>" target="_blank" class="btn btn-outline btn-sm">Preview Page</a>
     </p>
 
+    <% if (!m.noHero) { %>
     <!-- Hero Section -->
     <h2 style="margin-bottom: 12px;">Hero</h2>
     <form method="POST" action="/admin/pages/<%= page.slug %>/hero" id="heroForm" style="margin-bottom: 24px; background: var(--sand); border-radius: var(--radius); padding: 20px;">
@@ -50,6 +52,7 @@
       <input type="hidden" name="url" id="heroUrlHidden" value="<%= page.heroImage || '' %>">
       <button type="submit" class="btn btn-green btn-sm">Save Hero</button>
     </form>
+    <% } %>
 
     <!-- Body Content -->
     <% const isHome = page.slug === 'home'; %>

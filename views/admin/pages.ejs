@@ -11,7 +11,7 @@
           <h3 style="color: var(--green-dark); margin-bottom: 8px;"><%= p.title %></h3>
           <div style="display: flex; gap: 8px;">
             <a href="/admin/pages/<%= p.slug %>/edit" class="btn btn-outline btn-sm">Edit</a>
-            <a href="/<%= p.slug === 'home' ? '' : p.slug %>" target="_blank" class="btn btn-outline btn-sm">View</a>
+            <a href="<%= p.viewPath %>" target="_blank" class="btn btn-outline btn-sm">View</a>
           </div>
         </div>
       <% }) %>

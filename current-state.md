@@ -170,7 +170,11 @@ scripts/test-imap.js      standalone mailbox connectivity check (no DB writes)
   **queued as a draft** in `wiw-email-queue`.
 
 **Admin** (`routes/admin.js`, session-protected)
-- Dashboard, Programs (rich editor), Site Pages.
+- Dashboard, Programs (rich editor), Site Pages. Site Pages is a generic CMS
+  keyed by slug (home/about/waiver + the body-only `register-terms` /
+  `register-cancellation` snippets that render the T&C + Cancellation text at the
+  bottom of `/register`, with built-in defaults when unset). Editor hides the hero
+  section for `noHero` snippet pages; page catalog is `SITE_PAGES` in `routes/admin.js`.
 - Enrollments: registrations / payments / summary / printable rosters / CSV import.
   Per-child **date editor** (`/admin/enrollments/:id/edit-dates`) adds/removes/moves
   days per child (capacity is heads; admin edits may exceed it with a warning).

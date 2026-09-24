@@ -136,11 +136,19 @@
 
     <div id="termsBlock" style="margin-top: 32px; font-size: 0.85rem; color: var(--text-light); line-height: 1.6; <%= initialFc.terms.show ? '' : 'display: none;' %>">
       <h4 style="color: var(--green-dark); margin-bottom: 8px;">Terms and Conditions</h4>
-      <p style="margin-bottom: 8px;">Camp is both adventurous and fun — and part of that joy comes from learning how to navigate the natural world with awareness and confidence. In the woods, small challenges can arise, and together we practice resilience, problem-solving, and safe risk-taking as children learn their boundaries.</p>
-      <p style="margin-bottom: 16px;">By registering for <%= site.name %>, you acknowledge and agree to the terms outlined in our liability waiver, available <a href="#" onclick="openWaiverModal(); return false;" style="font-weight: 700;">here</a>.</p>
+      <% if (typeof termsBody !== 'undefined' && termsBody) { %>
+        <%- termsBody %>
+      <% } else { %>
+        <p style="margin-bottom: 8px;">Camp is both adventurous and fun — and part of that joy comes from learning how to navigate the natural world with awareness and confidence. In the woods, small challenges can arise, and together we practice resilience, problem-solving, and safe risk-taking as children learn their boundaries.</p>
+        <p style="margin-bottom: 16px;">By registering for <%= site.name %>, you acknowledge and agree to the terms outlined in our liability waiver, available <a href="#" onclick="openWaiverModal(); return false;" style="font-weight: 700;">here</a>.</p>
+      <% } %>
 
-      <h4 style="color: var(--green-dark); margin-bottom: 8px;">Cancellation Policy</h4>
-      <p>Cancellations made more than two weeks prior to the start of camp will receive a refund (less a 10% processing fee). Unfortunately, no refunds can be given for cancellations made within 14 days of the camp, including absences due to illness, last-minute conflicts, or changes in schedule. This helps us plan staffing, materials, and group size with care and consistency. Thank you for understanding.</p>
+      <h4 style="color: var(--green-dark); margin-bottom: 8px; margin-top: 16px;">Cancellation Policy</h4>
+      <% if (typeof cancellationBody !== 'undefined' && cancellationBody) { %>
+        <%- cancellationBody %>
+      <% } else { %>
+        <p>Cancellations made more than two weeks prior to the start of camp will receive a refund (less a 10% processing fee). Unfortunately, no refunds can be given for cancellations made within 14 days of the camp, including absences due to illness, last-minute conflicts, or changes in schedule. This helps us plan staffing, materials, and group size with care and consistency. Thank you for understanding.</p>
+      <% } %>
     </div>
     </div><!-- .form-fields-narrow -->
   </form>

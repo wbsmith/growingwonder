@@ -145,20 +145,26 @@ router.post('/programs/remove', requireAuth, asyncHandler(async (req, res) => {
 }));
 
 // Site Pages
+// Editable CMS pages. Full pages (home/about/waiver) carry a hero; the
+// registration legal snippets are body-only (noHero) and preview on /register.
+const SITE_PAGES = [
+  { slug: 'home', title: 'Home Page', viewPath: '/' },
+  { slug: 'about', title: 'About Page', viewPath: '/about' },
+  { slug: 'waiver', title: 'Liability Waiver', viewPath: '/waiver' },
+  { slug: 'register-terms', title: 'Registration — Terms & Conditions', viewPath: '/register', noHero: true },
+  { slug: 'register-cancellation', title: 'Registration — Cancellation Policy', viewPath: '/register', noHero: true },
+];
+
 router.get('/pages', requireAuth, (req, res) => {
-  res.render('admin/pages', {
-    pages: [
-      { slug: 'home', title: 'Home Page' },
-      { slug: 'about', title: 'About Page' },
-      { slug: 'waiver', title: 'Liability Waiver' },
-    ]
-  });
+  res.render('admin/pages', { pages: SITE_PAGES });
 });
 
 // Page editor
 router.get('/pages/:slug/edit', requireAuth, asyncHandler(async (req, res) => {
   const page = await db.getPage(req.params.slug) || { slug: req.params.slug };
-  res.render('admin/page_edit', { page });
+  const meta = SITE_PAGES.find(p => p.slug === req.params.slug)
+    || { slug: req.params.slug, title: req.params.slug, viewPath: '/' + req.params.slug, noHero: false };
+  res.render('admin/page_edit', { page, meta });
 }));
 
 router.post('/pages/:slug/content', requireAuth, asyncHandler(async (req, res) => {

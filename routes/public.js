@@ -70,7 +70,18 @@ router.get('/register/:slug?', asyncHandler(async (req, res) => {
   // program has the selector turned off in its formConfig.
   const hideSelector = !!(arrivedViaSlug && selectedProgram && selectedProgram.formConfig.programSelector.show === false);
 
-  res.render('register', { programs, selectedProgramId, selectedProgram, hideSelector });
+  // Editable T&C + cancellation text for the bottom of the form (admin-managed
+  // via Site Pages). Null falls back to the built-in defaults in the view.
+  const [termsPage, cancellationPage] = await Promise.all([
+    db.getPage('register-terms'),
+    db.getPage('register-cancellation'),
+  ]);
+
+  res.render('register', {
+    programs, selectedProgramId, selectedProgram, hideSelector,
+    termsBody: (termsPage && termsPage.body) || null,
+    cancellationBody: (cancellationPage && cancellationPage.body) || null,
+  });
 }));
 
 router.post('/register', publicFormLimiter, asyncHandler(async (req, res) => {
